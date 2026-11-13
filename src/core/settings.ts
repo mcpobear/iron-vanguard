@@ -7,6 +7,7 @@ export interface Settings {
   lookSensitivity: number;
   aimSensitivity: number;
   joystickSensitivity: number;
+  steerSensitivity: number;
   invertY: boolean;
   aimAssist: boolean;
   slowOnOrders: boolean;
@@ -23,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lookSensitivity: 1,
   aimSensitivity: 1,
   joystickSensitivity: 1,
+  steerSensitivity: 1,
   invertY: false,
   aimAssist: true,
   slowOnOrders: true,

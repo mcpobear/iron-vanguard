@@ -3,7 +3,7 @@ import type { MedalDef } from '../data/medals';
 import { drawAlderlandRoundel } from '../rendering/textures';
 
 /** Stylised blocky portrait (Roblox-like head on shoulders), drawn procedurally. */
-export function portraitCanvas(p: PortraitSpec, rankIndex: number, kia = false, size = 160): HTMLCanvasElement {
+export function portraitCanvas(p: PortraitSpec, rankIndex: number, kia = false, size = 160, ribbons: string[][] = []): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const g = c.getContext('2d')!;
@@ -28,9 +28,9 @@ export function portraitCanvas(p: PortraitSpec, rankIndex: number, kia = false, 
   g.lineTo(80, 136);
   g.lineTo(96, 118);
   g.fill();
-  // collar rank tabs
+  // rank tab on his right collar (viewer's left), ribbon bar on the left breast (viewer's right)
   drawRankInsignia(g, rankIndex, 26, 126, 30);
-  drawRankInsignia(g, rankIndex, 104, 126, 30);
+  drawRibbonBar(g, ribbons, 104, 126, 32);
   // neck
   g.fillStyle = shade(p.skin, -18);
   g.fillRect(66, 100, 28, 22);
@@ -204,6 +204,41 @@ function star(g: CanvasRenderingContext2D, x: number, y: number, r: number) {
   }
   g.closePath();
   g.fill();
+}
+
+/** Stacked campaign/decoration ribbon bar, worn above the breast pocket. */
+export function drawRibbonBar(g: CanvasRenderingContext2D, ribbons: string[][], x: number, y: number, w: number) {
+  if (!ribbons.length) return;
+  const rows = Math.min(3, ribbons.length);
+  const perRow = ribbons.length > 4 ? 2 : 1;
+  const bw = perRow > 1 ? (w - 2) / 2 : w;
+  const bh = 7;
+  let i = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < perRow && i < ribbons.length; c++, i++) {
+      const bx = x + c * (bw + 2);
+      const by = y + r * (bh + 2);
+      const stripes = ribbons[i];
+      for (let k = 0; k < stripes.length; k++) {
+        g.fillStyle = stripes[k];
+        g.fillRect(bx + (k * bw) / stripes.length, by, bw / stripes.length + 0.6, bh);
+      }
+      g.strokeStyle = 'rgba(0,0,0,0.5)';
+      g.lineWidth = 1;
+      g.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+      // gold edge so it reads as a mounted bar
+      g.strokeStyle = 'rgba(232,185,58,0.7)';
+      g.strokeRect(bx - 0.5, by - 0.5, bw + 1, bh + 1);
+    }
+  }
+}
+
+export function ribbonCanvas(ribbons: string[][], w = 36): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = Math.max(9, Math.min(3, ribbons.length) * 9);
+  drawRibbonBar(c.getContext('2d')!, ribbons, 0, 0, w);
+  return c;
 }
 
 export function rankCanvas(rank: number, w = 44): HTMLCanvasElement {

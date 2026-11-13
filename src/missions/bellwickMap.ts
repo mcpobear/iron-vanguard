@@ -111,7 +111,7 @@ const RAW: MapDef = {
 
 /** Gameplay anchor points (design coordinates; mirrored below). */
 const RAW_POINTS = {
-  playerStart: { x: 0, z: -292, heading: 0 },
+  playerStart: { x: 0, z: -266, heading: 0 },
   crossroads: { x: 2, z: -150 },
   farmBoar: { x: 74, z: -96, heading: -2.25 },
   pathfinders: { x: -8, z: -160 },

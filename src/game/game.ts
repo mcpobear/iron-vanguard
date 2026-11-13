@@ -149,7 +149,8 @@ export class Game {
     mission.start(this);
     const pl = this.playerTank!;
     this.camYaw = pl.heading;
-    this.camTarget.copy(pl.pos);
+    this.camTarget.copy(pl.pos).add(new THREE.Vector3(0, 3, 0));
+    this.updateCamera(0); // place the camera before the first frame so it never starts underground
     window.addEventListener('resize', this.onResize);
     this.audio.setAmbient(true);
     this.hud.mount();
@@ -478,8 +479,14 @@ export class Game {
       return;
     }
     p.throttle = inp.move.y;
+    // Steering response curve: small thumb movements barely steer, so holding a line is easy,
+    // while a full push still gives the whole lock. Steering also eases off the harder you
+    // are driving forward, so a slightly off-centre stick doesn't swerve the tank.
+    const sx = inp.move.x;
+    const curved = Math.sign(sx) * Math.pow(Math.abs(sx), 2.0) * this.settings.steerSensitivity;
+    const forwardBias = 1 - 0.32 * Math.min(1, Math.abs(inp.move.y));
     // physics yaw is +x-ward, which is screen-left when looking along +z: negate so stick-right turns right
-    p.steer = -inp.move.x;
+    p.steer = Math.max(-1, Math.min(1, -curved * forwardBias));
     const look = inp.takeLook();
     const s = this.settings;
     const inv = s.invertY ? -1 : 1;
@@ -626,14 +633,18 @@ export class Game {
       // collision avoidance: pull in front of walls / hills
       const t = this.world.col.segmentBoxes(this.camTarget.x, this.camTarget.y, this.camTarget.z, desired.x, desired.y, desired.z, true);
       if (t >= 0) desired = this.camTarget.clone().addScaledVector(off, Math.max(0.15, t * 0.9));
-      let gh = this.world.h(desired.x, desired.z) + 1.2;
+      // Never let the camera dip below the ground — a hard clamp, since a partial correction
+      // leaves it under a slope and you see through the terrain.
+      const ground = this.world.h(desired.x, desired.z) + 1.3;
+      if (desired.y < ground) desired.y = ground;
       // don't put the camera inside a neighbouring tank (common in column formation)
+      let lift = 0;
       for (const o of this.tanks) {
         if (o === p || o.gone) continue;
         const d = Math.hypot(o.pos.x - desired.x, o.pos.z - desired.z);
-        if (d < o.def.radius + 2.5) gh = Math.max(gh, o.pos.y + o.view.turretHeight + 2.2 * (1 - d / (o.def.radius + 2.5)) + 0.8);
+        if (d < o.def.radius + 2.5) lift = Math.max(lift, o.pos.y + o.view.turretHeight + 1.4 - desired.y);
       }
-      if (desired.y < gh) desired.y += (gh - desired.y) * 0.6 + 0.01;
+      if (lift > 0) desired.y += lift;
       cam.position.copy(desired);
       cam.position.x += (Math.random() - 0.5) * sh;
       cam.position.y += (Math.random() - 0.5) * sh;

@@ -11,6 +11,8 @@ export class Audio {
   private engineFilter!: BiquadFilterNode;
   private trackGain!: GainNode;
   private ambientGain!: GainNode;
+  private reverb!: ConvolverNode;
+  private reverbGain!: GainNode;
   private listener = new THREE.Vector3();
   private listenerYaw = 0;
   private recent = 0;
@@ -35,6 +37,14 @@ export class Audio {
     this.master = ctx.createGain();
     this.master.gain.value = this.volume;
     this.master.connect(comp).connect(ctx.destination);
+    // Outdoor ambience: a short synthesised impulse response gives gunfire its "crack … roll"
+    // across the fields instead of a dry click.
+    this.reverb = ctx.createConvolver();
+    this.reverb.buffer = this.makeIR(ctx, 1.9, 3.2);
+    this.reverbGain = ctx.createGain();
+    this.reverbGain.gain.value = 0.5;
+    this.reverb.connect(this.reverbGain).connect(this.master);
+
     this.music.attach(ctx, comp);
     this.music.setVolume(this.musicVolume);
     const len = ctx.sampleRate * 2;
@@ -83,6 +93,22 @@ export class Audio {
     this.ambientGain.gain.value = 0;
     an.connect(lp).connect(this.ambientGain).connect(this.master);
     an.start();
+  }
+
+  /** Decaying-noise impulse response — a cheap stand-in for open countryside. */
+  private makeIR(ctx: AudioContext, seconds: number, decay: number): AudioBuffer {
+    const n = Math.floor(ctx.sampleRate * seconds);
+    const buf = ctx.createBuffer(2, n, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < n; i++) {
+        const t = i / n;
+        // sparse early reflections then a smooth tail
+        const sparse = i < ctx.sampleRate * 0.12 ? (Math.random() < 0.08 ? 1 : 0.12) : 1;
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay) * sparse;
+      }
+    }
+    return buf;
   }
 
   setVolume(v: number) {
@@ -139,7 +165,7 @@ export class Audio {
     return { gain: 1 / (1 + d / falloff), pan: Math.max(-1, Math.min(1, -Math.sin(ang) * 0.8)) };
   }
 
-  private out(p: THREE.Vector3 | null, falloff?: number): AudioNode | null {
+  private out(p: THREE.Vector3 | null, falloff?: number, wet = 0): AudioNode | null {
     if (!this.ctx) return null;
     const { gain, pan } = this.spatial(p, falloff);
     if (gain < 0.02) return null;
@@ -150,6 +176,11 @@ export class Audio {
       sp.pan.value = pan;
       g.connect(sp).connect(this.master);
     } else g.connect(this.master);
+    if (wet > 0 && this.reverb) {
+      const w = this.ctx.createGain();
+      w.gain.value = gain * wet;
+      g.connect(w).connect(this.reverb);
+    }
     return g;
   }
 
@@ -160,7 +191,7 @@ export class Audio {
       this.recentT = now;
       this.recent = 0;
     }
-    return ++this.recent <= 6;
+    return ++this.recent <= 8;
   }
 
   private noiseBurst(dest: AudioNode, dur: number, type: BiquadFilterType, f0: number, f1: number, vol: number, delay = 0) {
@@ -196,38 +227,66 @@ export class Audio {
   }
 
   cannon(p: THREE.Vector3, calibre: number) {
-    const o = this.out(p, 60);
+    const o = this.out(p, 60, 0.6);
     if (!o) return;
     const big = calibre / 75;
+    // sharp muzzle crack, then the body of the blast, then a rolling tail across the fields
+    this.noiseBurst(o, 0.05, 'highpass', 5000, 2200, 1.1);
     this.noiseBurst(o, 0.9 * big, 'lowpass', 2400, 120, 1.0);
     this.thump(o, 90 * (1.2 - big * 0.3), 30, 0.5, 1.1);
     this.noiseBurst(o, 1.8, 'lowpass', 400, 60, 0.35, 0.08);
+    this.noiseBurst(o, 1.4, 'lowpass', 260, 50, 0.22, 0.22);
   }
 
+  /**
+   * Coaxial machine gun. Each round is a layered crack: a high transient, a mid "bark", a low
+   * thump, a faint mechanical action click, and a delayed slap-back off the countryside.
+   */
   mg(p: THREE.Vector3, vol = 1) {
     if (!this.throttle()) return;
-    const o = this.out(p, 30);
+    const o = this.out(p, 34, 0.42);
     if (!o) return;
-    this.noiseBurst(o, 0.06, 'bandpass', 1800, 900, 0.5 * vol);
-    this.thump(o, 180, 80, 0.05, 0.25 * vol, 'square');
+    const ctx = this.ctx!;
+    const jitter = 0.92 + Math.random() * 0.16; // no two rounds identical
+    this.noiseBurst(o, 0.022, 'highpass', 6000 * jitter, 2600, 0.85 * vol);
+    this.noiseBurst(o, 0.075, 'bandpass', 2100 * jitter, 700, 0.6 * vol);
+    this.noiseBurst(o, 0.16, 'lowpass', 700, 160, 0.3 * vol, 0.012);
+    this.thump(o, 165 * jitter, 55, 0.08, 0.4 * vol, 'square');
+    // bolt / feed mechanism
+    const t = ctx.currentTime;
+    const m = ctx.createOscillator();
+    m.type = 'square';
+    m.frequency.setValueAtTime(3200 * jitter, t + 0.018);
+    const mg = ctx.createGain();
+    mg.gain.setValueAtTime(0.05 * vol, t + 0.018);
+    mg.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+    m.connect(mg).connect(o);
+    m.start(t + 0.018);
+    m.stop(t + 0.05);
+    // slap-back echo gives the open-field feel
+    this.noiseBurst(o, 0.12, 'lowpass', 1400, 300, 0.16 * vol, 0.09 + Math.random() * 0.04);
   }
 
   rifle(p: THREE.Vector3) {
     if (!this.throttle()) return;
-    const o = this.out(p, 25);
+    const o = this.out(p, 28, 0.45);
     if (!o) return;
-    this.noiseBurst(o, 0.08, 'highpass', 2200, 800, 0.35);
+    const j = 0.9 + Math.random() * 0.2;
+    this.noiseBurst(o, 0.025, 'highpass', 5200 * j, 2000, 0.6);
+    this.noiseBurst(o, 0.1, 'bandpass', 1700 * j, 520, 0.32);
+    this.thump(o, 140 * j, 50, 0.07, 0.2, 'square');
+    this.noiseBurst(o, 0.26, 'lowpass', 900, 180, 0.14, 0.07);
   }
 
   explosion(p: THREE.Vector3, size: number) {
-    const o = this.out(p, 70);
+    const o = this.out(p, 70, 0.7);
     if (!o) return;
     this.noiseBurst(o, 1.6 * size, 'lowpass', 900, 50, 1.1);
     this.thump(o, 70, 25, 0.9, 1.2 * Math.min(1.5, size));
   }
 
   impact(p: THREE.Vector3, ricochet: boolean, pen = false) {
-    const o = this.out(p, 45);
+    const o = this.out(p, 45, 0.5);
     if (!o) return;
     if (ricochet) {
       this.thump(o, 2400, 700, 0.35, 0.35, 'triangle');
@@ -270,7 +329,7 @@ export class Audio {
     if (!this.ctx || Math.random() > dt * 0.12) return;
     const a = Math.random() * Math.PI * 2;
     const p = this.listener.clone().add(new THREE.Vector3(Math.cos(a) * 600, 0, Math.sin(a) * 600));
-    const o = this.out(p, 300);
+    const o = this.out(p, 300, 0.9);
     if (!o) return;
     this.noiseBurst(o, 2.2, 'lowpass', 300, 40, 0.8);
   }

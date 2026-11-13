@@ -95,6 +95,18 @@ export function newCampaign(seed = Date.now()): CampaignState {
 
 export const fullName = (c: Commander) => `${c.firstName} ${c.lastName}`;
 
+/** Ribbon stripe sets for a commander's awards, most prestigious first (for the portrait bar). */
+export function ribbonsOf(c: Commander): string[][] {
+  const seen = new Set<string>();
+  return c.medals
+    .filter((m) => (seen.has(m.medalId) ? false : (seen.add(m.medalId), true)))
+    .map((m) => MEDALS[m.medalId])
+    .filter(Boolean)
+    .sort((a, b) => b.tier - a.tier)
+    .slice(0, 6)
+    .map((d) => d.ribbon);
+}
+
 export function appointmentOf(s: CampaignState, id: string): string {
   if (s.platoonCommanderId === id) return 'Platoon Commander';
   if (s.deputyId === id) return 'Deputy Platoon Commander';
@@ -268,4 +280,5 @@ export function reorganisePlatoon(s: CampaignState, rng: Rng = Math.random): str
 }
 
 import { rankAbbr } from '../data/ranks';
+import { MEDALS } from '../data/medals';
 export const rankText = (c: Commander) => rankAbbr(c.rankIndex);

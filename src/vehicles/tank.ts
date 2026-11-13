@@ -132,7 +132,7 @@ export class Tank {
     const sp = Math.abs(this.speed) / d.maxSpeed;
     const steerInput = this.canMove ? this.steer * (this.speed < -0.3 ? -1 : 1) : 0;
     const targetYaw = steerInput * d.turnRate * (0.65 + 0.35 * (1 - sp)) * (surf === 2 ? 0.6 : 1);
-    this.yawRate += (targetYaw - this.yawRate) * Math.min(1, dt * 4);
+    this.yawRate += (targetYaw - this.yawRate) * Math.min(1, dt * 3.2);
     this.heading = wrap(this.heading + this.yawRate * dt);
     const fx = Math.sin(this.heading), fz = Math.cos(this.heading);
     const p = { x: this.pos.x + fx * this.speed * dt, z: this.pos.z + fz * this.speed * dt };

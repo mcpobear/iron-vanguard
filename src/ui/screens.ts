@@ -1,5 +1,5 @@
 import type { CampaignState, Commander, MissionResult } from '../campaign/types';
-import { appointmentOf, fullName, newCampaign, isAvailable } from '../campaign/campaign';
+import { appointmentOf, fullName, newCampaign, isAvailable, ribbonsOf } from '../campaign/campaign';
 import { RANKS, rankAbbr, rankName } from '../data/ranks';
 import { MEDALS } from '../data/medals';
 import { portraitCanvas, rankCanvas, medalCanvas } from './art';
@@ -120,7 +120,7 @@ export function staging(host: ScreenHost): HTMLElement {
       <div class="muted">${tk ? `${tk.model} Sentinel · turret ${tk.turretNumber} · ${tk.serial}` : 'No vehicle'}</div>
       ${cm && cm.status === 'wounded' ? '<span class="chip dmg">Recovering from wounds</span>' : ''}</div></div>`);
     if (cm) {
-      card.querySelector('.sc-port')!.appendChild(portraitCanvas(cm.portrait, cm.rankIndex, false, 84));
+      card.querySelector('.sc-port')!.appendChild(portraitCanvas(cm.portrait, cm.rankIndex, false, 84, ribbonsOf(cm)));
       card.addEventListener('click', () => host.show('profile', cm.id));
     }
     slots.appendChild(card);
@@ -211,7 +211,7 @@ export function debrief(host: ScreenHost, r: MissionResult): HTMLElement {
         <div class="muted">His name has been added to the Roll of Honour.</div>
         ${r.finalPlatoonCommanderId && c.platoonCommanderId === st.commanderId ? `<div>Acting Platoon Commander: <b>${fullName(after.commanders[r.finalPlatoonCommanderId])}</b></div>` : ''}
       </div></div>`);
-      e.querySelector('.kp')!.appendChild(portraitCanvas(cm.portrait, cm.rankIndex, true, 80));
+      e.querySelector('.kp')!.appendChild(portraitCanvas(cm.portrait, cm.rankIndex, true, 80, ribbonsOf(cm)));
       cr.appendChild(e);
     }
   }
@@ -230,7 +230,7 @@ export function debrief(host: ScreenHost, r: MissionResult): HTMLElement {
         <div class="${rep.promoted ? 'promoted' : 'muted'}">${rep.killed ? '' : esc(rep.promotionNote)}</div>
       </div>
       <div class="dc-medals"></div></div>`);
-    card.querySelector('.dp')!.appendChild(portraitCanvas(cm.portrait, cm.rankIndex, rep.killed, 64));
+    card.querySelector('.dp')!.appendChild(portraitCanvas(cm.portrait, cm.rankIndex, rep.killed, 64, ribbonsOf(cm)));
     for (const m of rep.newMedals) {
       const md = MEDALS[m.medalId];
       const w = h(`<div class="medal-new" title="${esc(m.citation)}"><span>${md.name}${m.posthumous ? ' (posthumous)' : ''}</span></div>`);
@@ -269,7 +269,7 @@ export function personnel(host: ScreenHost): HTMLElement {
       <div class="muted">${cm.abilityName}</div>
       <div class="chips"><span class="chip ${cm.status === 'active' ? 'ok' : 'dmg'}">${cm.status === 'active' ? 'Active' : 'Wounded'}</span><span class="chip">${cm.xp} XP</span><span class="chip">${cm.medals.length} awards</span></div>
     </div></div>`);
-    card.querySelector('.pc-port')!.appendChild(portraitCanvas(cm.portrait, cm.rankIndex, false, 110));
+    card.querySelector('.pc-port')!.appendChild(portraitCanvas(cm.portrait, cm.rankIndex, false, 110, ribbonsOf(cm)));
     card.querySelector('.pc-rank')!.appendChild(rankCanvas(cm.rankIndex, 30));
     card.addEventListener('click', () => host.show('profile', cm.id));
     cards.appendChild(card);
@@ -316,7 +316,7 @@ export function profile(host: ScreenHost, id: string): HTMLElement {
         <h3>Appointments</h3><ul>${cm.appointmentHistory.map((p) => `<li>${fmtDate(p.date)} — ${esc(p.appointment)}</li>`).join('')}</ul></section>
       <section><h3>Mission history</h3>${cm.missionHistory.length ? `<table class="hist"><tr><th>Date</th><th>Mission</th><th>Callsign</th><th>XP</th><th>Kills</th><th>Outcome</th></tr>${cm.missionHistory.map((m) => `<tr><td>${fmtDate(m.date)}</td><td>${esc(m.missionName)}</td><td>${m.callsign}</td><td>${m.xp}</td><td>${m.tankKills}</td><td>${esc(m.outcome)}</td></tr>`).join('')}</table>` : '<p class="muted">No missions yet.</p>'}</section>
     </div></div>`);
-  body.querySelector('.pf-port')!.appendChild(portraitCanvas(cm.portrait, cm.rankIndex, cm.status === 'kia', 180));
+  body.querySelector('.pf-port')!.appendChild(portraitCanvas(cm.portrait, cm.rankIndex, cm.status === 'kia', 180, ribbonsOf(cm)));
   body.querySelector('.pf-rank span')!.appendChild(rankCanvas(cm.rankIndex, 34));
   const medals = body.querySelector('.medals')!;
   if (!cm.medals.length) medals.innerHTML = '<span class="muted">None yet.</span>';
@@ -349,7 +349,7 @@ export function rollOfHonour(host: ScreenHost): HTMLElement {
       <div class="muted">${k.callsign} · ${tank ? `A-44 Sentinel, turret ${tank.turretNumber} (${tank.serial})` : ''}</div>
       <div class="muted">${cm.missionsCompleted} mission(s) · ${cm.tankKills} enemy tanks destroyed · ${cm.xp} XP</div>
       <div class="hon-medals"></div></div></div>`);
-    e.querySelector('.hp')!.appendChild(portraitCanvas(cm.portrait, k.rankAtDeath, true, 96));
+    e.querySelector('.hp')!.appendChild(portraitCanvas(cm.portrait, k.rankAtDeath, true, 96, ribbonsOf(cm)));
     for (const m of cm.medals) e.querySelector('.hon-medals')!.appendChild(medalCanvas(MEDALS[m.medalId], 30));
     e.addEventListener('click', () => host.show('profile', cm.id));
     list.appendChild(e);
@@ -392,6 +392,7 @@ export function settingsScreen(host: ScreenHost): HTMLElement {
       ${row('Camera sensitivity', rng('lookSensitivity', 0.3, 2.5, 0.1))}
       ${row('Gunner\'s sight sensitivity', rng('aimSensitivity', 0.3, 2.5, 0.1))}
       ${row('Joystick sensitivity', rng('joystickSensitivity', 0.6, 1.6, 0.05))}
+      ${row('Steering sharpness', rng('steerSensitivity', 0.5, 1.6, 0.05))}
       ${row('Invert vertical look', chk('invertY'))}
       ${row('Aim assistance (subtle)', chk('aimAssist'))}
       ${row('Slow time while giving orders', chk('slowOnOrders'))}

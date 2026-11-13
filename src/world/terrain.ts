@@ -54,9 +54,10 @@ export class Terrain {
         const sd = Math.abs(z - def.streamZ(x));
         const underBridge = Math.abs(x - bridge.x) < bridge.width * 0.5 + 1;
         if (!underBridge) h -= 1.6 * Math.exp(-(sd * sd) / 22);
-        // raised edges keep the player inside the map
-        const e = Math.max(Math.abs(x), Math.abs(z)) - (def.half - 70);
-        if (e > 0) h += e * e * 0.012;
+        // Raised edges keep the player inside the map, but roads stay flat so the start
+        // position and the exit roads never sit on a steep bank.
+        const e = Math.max(Math.abs(x), Math.abs(z)) - (def.half - 45);
+        if (e > 0) h += e * e * 0.009 * (1 - wRoad * 0.92);
         this.h[j * this.n + i] = h;
         this.surf[j * this.n + i] = road.d < road.width * 0.5 + 0.5 ? 1 : sd < 3.2 && !underBridge ? 2 : 0;
       }

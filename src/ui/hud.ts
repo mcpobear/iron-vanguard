@@ -3,6 +3,7 @@ import type { Game } from '../game/game';
 import type { Tank } from '../vehicles/tank';
 import { ORDER_LABEL, FORMATION_LABEL, type Order, type Formation } from '../platoon/platoon';
 import { rankCanvas, portraitCanvas } from './art';
+import { ribbonsOf } from '../campaign/campaign';
 import { OUTCOME_TEXT } from '../progression/casualty';
 import type { AmmoType } from '../data/tanks';
 import { POINTS } from '../missions/bellwickMap';
@@ -480,7 +481,7 @@ export class Hud {
         <div class="bar"><div class="bar-fill"></div></div><div class="cc-status"></div></div>`;
       if (c) {
         this.cmdCard.querySelector('.cc-rank')!.appendChild(rankCanvas(c.rankIndex, 26));
-        this.cmdCard.querySelector('.cc-port')!.appendChild(portraitCanvas(c.portrait, c.rankIndex, false, 56));
+        this.cmdCard.querySelector('.cc-port')!.appendChild(portraitCanvas(c.portrait, c.rankIndex, false, 56, ribbonsOf(c)));
       }
     }
     const hp = Math.round(p.hpFraction() * 100);
