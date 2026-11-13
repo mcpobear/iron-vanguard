@@ -48,6 +48,7 @@ On a phone, use **Add to Home Screen** for a full-screen, app-like launch (a web
 | Tactical map | **MAP** or tap the minimap | M |
 | Recentre camera | ⟲ | — |
 | Artillery fire mission | **ARTY**, then tap the map | R |
+| Skip end-of-mission camera | **SKIP** | SKIP |
 | Pause | II | Esc |
 
 Multi-touch is fully supported. You can drive, look and fire at the same time. On command transfer every finger is released safely.
@@ -78,13 +79,29 @@ What's new in this mission:
 - **Two more platoons under your command.** Vanguard 2 and Vanguard 3 have their own named commanders, fight
   their own sector, report on the radio and take losses. Designating a target with ATTACK MY TARGET pulls them
   onto it.
-- **Artillery.** Tap ARTY, then tap the tactical map. Forty seconds from call to the first round, three fire
-  missions a battle, and an 18-round concentration that will wreck anything caught in the open — including
-  your own platoon, so lead the target rather than aiming at where they are now.
+- **Artillery.** Tap ARTY, then tap the tactical map. Twenty-two seconds from call to the first round, three
+  fire missions a battle, and an 18-round concentration that will wreck anything caught in the open — including
+  your own platoon, so lead the target rather than aiming at where they are now. A banner counts the rounds
+  down and the beaten zone is marked on the map and in the world.
 - **Hull-down fighting.** The crest is high enough to hide a hull and low enough to shoot over. Sitting just
   behind it means incoming rounds strike the ridge instead of your front plate.
 - **The V-58 Bastion.** A heavy tank whose frontal armour simply stops the Sentinel's 75 mm — six frontal hits
   do nothing. Flank it, catch it as it crests the ridge, or drop a barrage on it.
+
+## Difficulty
+
+Settings → Difficulty sets enemy crew quality, and it is the main dial if the game feels too easy or too hard:
+
+| Level | Enemy damage | Time to spot you | Gun dispersion |
+|---|---|---|---|
+| Recruit | 70% | slow | loose |
+| **Veteran** (default) | 105% | normal | accurate |
+| Elite | 135% | fast | tight |
+
+Each mission also carries its own multiplier on top: Bellwick is gentler than the rest, Kessler Ridge harder.
+
+**Hull-down matters, but it is not invisibility.** A tank behind a crest is still spotted and shot at — its
+protection comes from incoming rounds striking the ridge and from presenting only turret armour.
 
 ## Campaign rules implemented
 

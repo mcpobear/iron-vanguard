@@ -28,6 +28,8 @@ export interface MissionInfo {
   mapLabels?: { text: string; x: number; z: number }[];
   /** Shown on the mission card in the staging area. */
   order: number;
+  /** Multiplier on enemy crew quality for this mission (1 = baseline). */
+  enemySkill?: number;
   forces?: { friendly: string; enemy: string };
 }
 
@@ -35,6 +37,8 @@ export interface MissionScript {
   info: MissionInfo;
   /** Where the platoon deploys, and which way it faces. */
   playerStart: { x: number; z: number; heading: number };
+  /** Point the end-of-mission camera orbits. Defaults to the player's tank. */
+  victoryFocus?: { x: number; z: number };
   /** Optional per-mission scenery (gun lines, wrecks) added once at load. */
   buildScenery?(g: Game): void;
   objectiveText: string;

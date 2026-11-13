@@ -4,7 +4,7 @@ import { RANKS, rankAbbr, rankName } from '../data/ranks';
 import { MEDALS } from '../data/medals';
 import { portraitCanvas, rankCanvas, medalCanvas } from './art';
 import { previewResult } from '../progression/debrief';
-import { APP_VERSION, type Settings } from '../core/settings';
+import { APP_VERSION, DIFFICULTY, type Settings } from '../core/settings';
 import type { MissionInfo } from '../missions/mission';
 import { isUnlocked, MISSIONS, type MissionEntry } from '../missions/registry';
 import { drawAlderlandRoundel } from '../rendering/textures';
@@ -151,7 +151,7 @@ export function briefing(host: ScreenHost): HTMLElement {
       <div class="br-meta">
         <div><small>CAMPAIGN</small>${m.campaign}</div><div><small>LOCATION</small>${m.location}</div>
         <div><small>TIME</small>${m.time}</div><div><small>WEATHER</small>${m.weather}</div>
-        <div><small>DIFFICULTY</small>${m.difficulty}</div><div><small>EXPECTED DURATION</small>${m.duration}</div>
+        <div><small>MISSION</small>${m.difficulty}</div><div><small>ENEMY CREWS</small>${DIFFICULTY[host.settings.difficulty].label}</div><div><small>EXPECTED DURATION</small>${m.duration}</div>
       </div>
       <div class="radio-brief">${m.briefing.map((p) => `<p>${esc(p)}</p>`).join('')}</div>
     </div>
@@ -392,6 +392,11 @@ export function settingsScreen(host: ScreenHost): HTMLElement {
   const rng = (k: string, min: number, max: number, step: number) => `<input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${(s as any)[k]}"><output>${(s as any)[k]}</output>`;
   const chk = (k: string) => `<input type="checkbox" data-k="${k}" ${(s as any)[k] ? 'checked' : ''}>`;
   const body = h(`<div class="settings">
+    <section><h3>Difficulty</h3>
+      ${row('Enemy crew quality', sel('difficulty', [['recruit', 'Recruit — forgiving'], ['veteran', 'Veteran — intended'], ['elite', 'Elite — punishing']]))}
+      <div class="muted diff-blurb"></div>
+      <div class="muted">Changes apply to the next mission you deploy on.</div>
+    </section>
     <section><h3>Graphics</h3>
       ${row('Quality preset', sel('graphics', [['low', 'Low (older phones)'], ['medium', 'Medium'], ['high', 'High (shadows)']]))}
       ${row('Frame-rate cap', sel('fpsCap', [['30', '30 FPS (battery saver)'], ['60', '60 FPS'], ['0', 'Uncapped']]))}
@@ -416,6 +421,9 @@ export function settingsScreen(host: ScreenHost): HTMLElement {
     </section>
     <div class="btn-row"><button class="btn big primary" data-a="save">SAVE SETTINGS</button></div>
   </div>`);
+  const blurb = body.querySelector('.diff-blurb') as HTMLElement;
+  const showBlurb = () => (blurb.textContent = DIFFICULTY[s.difficulty].blurb);
+  showBlurb();
   body.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-k]').forEach((inp) => {
     inp.addEventListener('input', () => {
       const k = inp.dataset.k!;
@@ -426,6 +434,7 @@ export function settingsScreen(host: ScreenHost): HTMLElement {
         (inp.nextElementSibling as HTMLOutputElement).value = String(v);
       } else if (k === 'fpsCap') v = parseInt(v);
       (s as any)[k] = v;
+      if (k === 'difficulty') showBlurb();
     });
   });
   const file = body.querySelector('.hidden-file') as HTMLInputElement;

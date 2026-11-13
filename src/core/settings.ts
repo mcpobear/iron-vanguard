@@ -3,9 +3,11 @@ declare const __APP_VERSION__: string;
 export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 
 export type GraphicsPreset = 'low' | 'medium' | 'high';
+export type DifficultyLevel = 'recruit' | 'veteran' | 'elite';
 
 export interface Settings {
   graphics: GraphicsPreset;
+  difficulty: DifficultyLevel;
   fpsCap: 30 | 60 | 0;
   uiScale: number;
   lookSensitivity: number;
@@ -23,6 +25,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   graphics: 'medium',
+  difficulty: 'veteran',
   fpsCap: 60,
   uiScale: 1,
   lookSensitivity: 1,
@@ -43,6 +46,46 @@ export const isTouchDevice = () => matchMedia('(pointer: coarse)').matches || 'o
 export function usesTouch(s: Settings) {
   return s.controls === 'touch' || (s.controls === 'auto' && isTouchDevice());
 }
+
+export interface DifficultyValues {
+  /** Multiplier on damage enemy shells do to the player's tanks. */
+  enemyDamage: number;
+  /** Seconds of clear sight an enemy crew needs before it can engage (lower = quicker). */
+  enemyAcquire: number;
+  /** Multiplier on enemy gun dispersion (lower = more accurate). */
+  enemySpread: number;
+  /** Grace period before a newly alerted enemy takes its first shot. */
+  firstShotDelay: number;
+  label: string;
+  blurb: string;
+}
+
+export const DIFFICULTY: Record<DifficultyLevel, DifficultyValues> = {
+  recruit: {
+    enemyDamage: 0.7,
+    enemyAcquire: 3.6,
+    enemySpread: 2.5,
+    firstShotDelay: 3,
+    label: 'Recruit',
+    blurb: 'Forgiving. Enemy crews are slow to see you and shoot loosely.',
+  },
+  veteran: {
+    enemyDamage: 1.05,
+    enemyAcquire: 2.1,
+    enemySpread: 1.5,
+    firstShotDelay: 1.8,
+    label: 'Veteran',
+    blurb: 'The intended fight. Enemy crews aim properly and hurt.',
+  },
+  elite: {
+    enemyDamage: 1.35,
+    enemyAcquire: 1.4,
+    enemySpread: 1.05,
+    firstShotDelay: 1.1,
+    label: 'Elite',
+    blurb: 'Punishing. They spot fast, shoot straight, and a flank shot will kill you.',
+  },
+};
 
 export function presetValues(p: GraphicsPreset) {
   const dpr = window.devicePixelRatio || 1;

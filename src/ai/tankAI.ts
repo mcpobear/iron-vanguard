@@ -56,6 +56,21 @@ export function driveTo(t: Tank, gx: number, gz: number, g: Game, ds: DriveState
   return false;
 }
 
+/**
+ * The part of `target` that `shooter` can actually see: the hull centre if it is exposed,
+ * otherwise the turret. A hull-down tank is still spottable and shootable — its protection
+ * comes from incoming rounds striking the ridge and from only presenting turret armour,
+ * not from being invisible.
+ */
+export function visiblePoint(shooter: Tank, target: Tank, g: Game, smoke = 0.6): THREE.Vector3 | null {
+  const eye = shooter.eye();
+  const hull = target.centre();
+  if (g.world.col.lineOfSight(eye.x, eye.y, eye.z, hull.x, hull.y, hull.z, smoke)) return hull;
+  const turret = target.pos.clone().setY(target.pos.y + target.view.turretHeight + 0.25);
+  if (g.world.col.lineOfSight(eye.x, eye.y, eye.z, turret.x, turret.y, turret.z, smoke)) return turret;
+  return null;
+}
+
 /** Can `shooter` fire at `target` without a friendly tank in the way? */
 export function lineOfFireClear(shooter: Tank, target: THREE.Vector3, g: Game): boolean {
   const a = shooter.centre();
@@ -70,8 +85,8 @@ export function lineOfFireClear(shooter: Tank, target: THREE.Vector3, g: Game): 
   return true;
 }
 
-function leadPoint(shooter: Tank, target: Tank) {
-  const c = target.centre();
+function leadPoint(shooter: Tank, target: Tank, at?: THREE.Vector3) {
+  const c = (at ?? target.centre()).clone();
   const dist = c.distanceTo(shooter.centre());
   const flight = dist / shooter.def.gun.velocity[shooter.ammoSel];
   const v = target.forward().multiplyScalar(target.speed * flight);
@@ -108,6 +123,7 @@ export class FriendlyAI {
   inFormation = false;
   sidestep: THREE.Vector3 | null = null;
   sidestepT = 0;
+  private seenAt = new Map<number, THREE.Vector3>();
 
   constructor(public tank: Tank) {}
 
@@ -142,7 +158,7 @@ export class FriendlyAI {
       this.acquire += dt / p.acquireTime;
       if (this.acquire >= 1) {
         t.ammoSel = 'AP';
-        const lp = leadPoint(t, tgt);
+        const lp = leadPoint(t, tgt, this.seenAt.get(tgt.id));
         t.aimPoint = lp;
         const err = aimError(t, lp);
         const dist = lp.distanceTo(t.centre());
@@ -253,7 +269,9 @@ export class FriendlyAI {
       const d = c.distanceTo(eye);
       const range = t.def.spotRange * (g.mercerLeading() ? 1.08 : 1);
       if (d > range) continue;
-      if (!g.world.col.lineOfSight(eye.x, eye.y, eye.z, c.x, c.y, c.z)) continue;
+      const seen = visiblePoint(t, e, g);
+      if (!seen) continue;
+      this.seenAt.set(e.id, seen);
       if (g.world.foliageBetween(eye.x, eye.z, c.x, c.z) > 3 && d > 90) continue;
       let score = d;
       if (pl.order === 'attack' && pl.designated === e) score -= 1000;
@@ -312,6 +330,11 @@ export interface EnemyOpts {
   holdFireUntil?: number;
   /** Optional idle patrol loop — the tank shuffles between these while unalerted. */
   patrol?: { x: number; z: number }[];
+  /**
+   * Range this crew tries to fight at. While it has a target further away than this it keeps
+   * closing, so an attack presses home instead of stalling at its start line.
+   */
+  preferredRange?: number;
 }
 
 export class EnemyAI {
@@ -335,6 +358,8 @@ export class EnemyAI {
   mgCd = 0;
   turretScanT = 0;
   scanDir = 1;
+  /** Last visible point on each ally — hull if exposed, turret if hull-down. */
+  private aimAt = new Map<number, THREE.Vector3>();
   /** Seconds with nothing to shoot at and nobody near — a straggler eventually withdraws. */
   idleT = 0;
 
@@ -376,7 +401,9 @@ export class EnemyAI {
         const c = a.centre();
         const d = c.distanceTo(eye);
         let det = this.detection.get(a.id) ?? 0;
-        const visible = d < t.def.spotRange && g.world.col.lineOfSight(eye.x, eye.y, eye.z, c.x, c.y, c.z, 0.45);
+        const seen = d < t.def.spotRange ? visiblePoint(t, a, g, 0.45) : null;
+        const visible = !!seen;
+        if (seen) this.aimAt.set(a.id, seen);
         if (visible) {
           const moving = Math.abs(a.speed) > 1 ? 1.3 : 1;
           const fired = g.time - a.lastFireTime < 4 ? 2 : 1;
@@ -430,7 +457,7 @@ export class EnemyAI {
 
     // shooting
     if (this.target && this.target.alive) {
-      const lp = leadPoint(t, this.target);
+      const lp = leadPoint(t, this.target, this.aimAt.get(this.target.id));
       // inferior fire control: aim point wanders
       lp.x += Math.sin(g.time * 1.3 + t.id) * 1.2;
       lp.y += Math.sin(g.time * 0.9 + t.id) * 0.6;
@@ -491,6 +518,19 @@ export class EnemyAI {
       case 'guard':
       case 'engage': {
         const gp = this.o.guard;
+        // Press the attack: close to fighting range rather than trading long shots.
+        const want = this.o.preferredRange ?? 0;
+        if (want > 0 && this.target && this.shootAndScoot <= 0) {
+          const d = this.target.pos.distanceTo(t.pos);
+          if (d > want) {
+            const to = this.target.pos.clone().sub(t.pos).normalize();
+            // approach slightly off-axis so the whole wave doesn't queue up in one lane
+            const side = new THREE.Vector3(to.z, 0, -to.x).multiplyScalar(this.scanDir * 0.35);
+            const step = t.pos.clone().addScaledVector(to.add(side).normalize(), Math.min(d - want * 0.8, 55));
+            driveTo(t, step.x, step.z, g, this.ds, dt, 0.85, 8);
+            break;
+          }
+        }
         if (this.shootAndScoot > 0) {
           // sidestep a few metres so the next incoming round misses
           this.shootAndScoot -= dt;

@@ -21,7 +21,7 @@ export const KESSLER_INFO: MissionInfo = {
     'Reconnaissance has the Varkovian 4th Armoured Brigade forming up beyond the wheat plain north of Kessler Ridge. They will come at us in strength, and they will come soon.',
     'The ridge is the only ground worth holding between here and Bellwick. You will hold it.',
     'You will not be alone. Vanguard 2 and Vanguard 3 are under your command for this action — use them. Put them where you need them and they will fight.',
-    'Hammer Battery is laying on behind the gun line. Mark a target on your map and they will drop a concentration on it, but they are slow and they have very few missions to give you. Forty seconds from your call to the first round. Do not drop it on your own men.',
+    'Hammer Battery is laying on behind the gun line. Tap ARTY, mark a target on your map, and they will drop a concentration on it. Twenty-two seconds from your call to the first round, and only three missions for the whole battle. Aim where the enemy will be, not where they are — and do not drop it on your own men.',
     'Fight from the crest. Keep your hull behind the ridge and only your turret in the open — that is what will keep you alive when the heavy tanks arrive.',
     'The anti-tank battery is on its way forward. Hold until the guns are in action.',
     'Remember, Vanguard — tanks can be replaced. Experienced crews cannot.',
@@ -37,6 +37,7 @@ export const KESSLER_INFO: MissionInfo = {
   map: KESSLER,
   fog: { color: 0xcdd9e2, near: 120, far: 620 },
   order: 2,
+  enemySkill: 1.15,
   forces: {
     friendly: '3 × tank platoon (Vanguard 1, 2 and 3), Hammer Battery in support, anti-tank battery moving up',
     enemy: 'Varkovian 4th Armoured Brigade — Boar and Ox tanks in strength, V-58 Bastion heavy tanks, infantry',
@@ -65,6 +66,7 @@ interface Wave {
 export class KesslerMission implements MissionScript {
   info = KESSLER_INFO;
   playerStart = { ...KPOINTS.playerStart };
+  victoryFocus = KPOINTS.gunLine;
   objectiveText = '';
   markers: Marker[] = [];
   phaseIndex = 0;
@@ -135,17 +137,17 @@ export class KesslerMission implements MissionScript {
     // Wave 1 — reconnaissance: five Boars probing, fast and poorly armoured.
     for (let i = 0; i < 5; i++) {
       const l = lanes[i % 3];
-      w.push({ at: 4 + i * 5, defId: 'V-32', lane: l.lane, push: l.push, spread: (i - 2) * 26, aggression: 0.85 });
+      w.push({ at: 4 + i * 5, defId: 'V-32', lane: l.lane, push: l.push, spread: (i - 2) * 40, aggression: 0.85 });
     }
     // Wave 2 — the main assault: massed Ox mediums with a few Boars on the flanks.
     for (let i = 0; i < 8; i++) {
       const l = lanes[i % 3];
-      w.push({ at: 6 + i * 7, defId: i % 4 === 3 ? 'V-32' : 'V-41', lane: l.lane, push: l.push, spread: (i % 4 - 1.5) * 30, aggression: 0.45 });
+      w.push({ at: 6 + i * 7, defId: i % 4 === 3 ? 'V-32' : 'V-41', lane: l.lane, push: l.push, spread: (i % 4 - 1.5) * 46, aggression: 0.55 });
     }
     // Wave 3 — the Bastions, with mediums screening them.
     for (let i = 0; i < 5; i++) {
       const l = lanes[i % 3];
-      w.push({ at: 5 + i * 11, defId: i < 3 ? 'V-58' : 'V-41', lane: l.lane, push: l.push, spread: (i - 2) * 34, aggression: 0.3 });
+      w.push({ at: 5 + i * 11, defId: i < 3 ? 'V-58' : 'V-41', lane: l.lane, push: l.push, spread: (i - 2) * 48, aggression: 0.4 });
     }
     this.waves = w;
   }
@@ -161,7 +163,9 @@ export class KesslerMission implements MissionScript {
         const t = g.spawnEnemy(w.defId, x, w.lane.z + (Math.random() - 0.5) * 20, Math.PI, {
           aggression: w.aggression,
           retreatTo: KPOINTS.enemyRetreat,
-          advanceTo: { x: w.push.x + w.spread * 0.5, z: w.push.z },
+          advanceTo: { x: w.push.x + w.spread * 0.8, z: w.push.z },
+          // lights rush in close, mediums fight at medium range, heavies stand off and snipe
+          preferredRange: w.defId === 'V-32' ? 45 : w.defId === 'V-41' ? 75 : 135,
         });
         g.activateEnemy(t, g.time + 2);
         this.spawned.push(t);
@@ -237,7 +241,7 @@ export class KesslerMission implements MissionScript {
         g.artillery.enabled = true;
         g.radio(HQ, 'That was the probe. The main body is moving — massed armour across the whole frontage. Hammer Battery is now at your disposal.');
         g.after(6, () => g.radio(BTY, 'Vanguard, Hammer Battery ready. Three fire missions. Mark a target on your map and we will put a concentration on it.'));
-        g.after(10, () => this.hint(g, 'arty', 'Tap ARTY, then tap the map where you want the shells. Forty seconds from call to impact — aim where they will be, not where they are.', 'Press R (or tap ARTY), then click the map. Forty seconds from call to impact — aim where they will be, not where they are.'));
+        g.after(10, () => this.hint(g, 'arty', 'Tap ARTY, then tap the map where you want the shells. 22 seconds from call to impact — aim ahead of them.', 'Press R (or tap ARTY), then click the map. 22 seconds from call to impact — aim ahead of them.'));
         this.spawnWave(g, 1);
         break;
       case 3: {
@@ -270,6 +274,7 @@ export class KesslerMission implements MissionScript {
         for (const o of this.atGuns(g)) o.visible = true;
         g.beginVictory();
         g.radio(HQ, 'Guns are in action! Batteries firing over open sights — Vanguard, the ridge is yours. Outstanding work.');
+        g.after(3.5, () => g.radio('Vanguard 2', 'They are turning back! The whole line is turning back!'));
         break;
     }
   }
@@ -291,6 +296,14 @@ export class KesslerMission implements MissionScript {
         return;
       }
       if (this.atGunsT < 95) this.gunLineFire(dt, g);
+    }
+
+    // End-of-mission camera: let it play, then show the victory panel. Without this the
+    // cinematic runs forever and the player is stuck watching it.
+    if (this.phaseIndex === 5) {
+      this.gunLineFire(dt, g);
+      if (g.victoryTime > 9) g.showVictory();
+      return;
     }
 
     switch (this.phaseIndex) {

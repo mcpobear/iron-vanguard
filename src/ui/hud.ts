@@ -96,6 +96,8 @@ export class Hud {
   private mapPanel = el('div', 'map-panel');
   private mapCanvas = el('canvas', 'tactical') as HTMLCanvasElement;
   private keyLegend = el('div', 'key-legend');
+  private skipBtn = el('button', 'btn skip', 'SKIP ›');
+  private artyBanner = el('div', 'arty-banner');
   private markerEls = new Map<string, HTMLElement>();
   private radioMsgs: { el: HTMLElement; t: number }[] = [];
   private textT = 0;
@@ -119,7 +121,7 @@ export class Hud {
     document.body.classList.add('in-game');
     const r = this.root;
     r.style.setProperty('--ui', String(g.settings.uiScale));
-    r.append(this.touchLayer, this.markersLayer, this.sight, this.crosshair, this.gunMarker, this.targetInfo, this.hitText, this.dmgFlash, this.cmdCard, this.objective, this.hintBox, this.toast, this.radioBox, this.platoonPanel, this.minimap, this.controls, this.keyLegend, this.ordersPanel, this.mapPanel, this.overlay);
+    r.append(this.skipBtn, this.artyBanner, this.touchLayer, this.markersLayer, this.sight, this.crosshair, this.gunMarker, this.targetInfo, this.hitText, this.dmgFlash, this.cmdCard, this.objective, this.hintBox, this.toast, this.radioBox, this.platoonPanel, this.minimap, this.controls, this.keyLegend, this.ordersPanel, this.mapPanel, this.overlay);
     this.sight.innerHTML = `
       <svg viewBox="-100 -100 200 200" preserveAspectRatio="xMidYMid meet">
         <defs><radialGradient id="vig"><stop offset="0.62" stop-color="black" stop-opacity="0"/><stop offset="0.72" stop-color="black" stop-opacity="0.95"/></radialGradient></defs>
@@ -165,6 +167,8 @@ export class Hud {
       this.platoonCollapsed = !this.platoonCollapsed;
       this.platoonPanel.classList.toggle('collapsed', this.platoonCollapsed);
     });
+    bindPress(this.skipBtn, () => g.skipCinematic());
+    this.skipBtn.style.display = 'none';
     this.buildOrders();
     this.mapPanel.append(this.mapCanvas);
     const mapClose = el('button', 'btn map-close', 'CLOSE');
@@ -190,6 +194,14 @@ export class Hud {
   unmount() {
     this.root.remove();
     document.body.classList.remove('in-game');
+  }
+
+  /** Offer to skip the end-of-mission camera. */
+  showSkip() {
+    this.skipBtn.style.display = '';
+  }
+  hideSkip() {
+    this.skipBtn.style.display = 'none';
   }
 
   setControlsVisible(v: boolean) {
@@ -416,9 +428,25 @@ export class Hud {
       if (g.mapOpen) this.drawTactical();
     }
     const art = g.artillery;
-    this.artyBtn.style.display = art.enabled ? '' : 'none';
+    const inbound = art.missions.find((m) => m.eta > 0);
+    if (inbound) {
+      this.artyBanner.style.display = '';
+      this.artyBanner.innerHTML = `<small>HAMMER BATTERY — ROUNDS INBOUND</small>IMPACT IN ${Math.ceil(inbound.eta)}s`;
+      this.artyBanner.classList.toggle('imminent', inbound.eta < 6);
+    } else if (art.missions.length) {
+      this.artyBanner.style.display = '';
+      this.artyBanner.innerHTML = '<small>HAMMER BATTERY</small>ROUNDS FALLING';
+      this.artyBanner.classList.add('imminent');
+    } else this.artyBanner.style.display = 'none';
+    // visible whenever the mission has artillery at all, so the player can discover it
+    this.artyBtn.style.display = art.available > 0 || art.missions.length ? '' : 'none';
     this.artyBtn.classList.toggle('ready', art.ready);
-    this.artyBtn.innerHTML = art.cooldown > 0 ? `ARTY<small>${Math.ceil(art.cooldown)}s</small>` : `ARTY<small>${art.available}</small>`;
+    this.artyBtn.classList.toggle('disabled', !art.ready);
+    this.artyBtn.innerHTML = !art.enabled
+      ? 'ARTY<small>SOON</small>'
+      : art.cooldown > 0
+        ? `ARTY<small>${Math.ceil(art.cooldown)}s</small>`
+        : `ARTY<small>${art.available}</small>`;
     // reload ring
     const frac = p.reload > 0 ? 1 - p.reload / p.def.gun.reload : 1;
     (this.fireBtn.querySelector('.ring') as HTMLElement).style.background = `conic-gradient(${frac >= 1 ? '#f5c542' : '#9aa38a'} ${frac * 360}deg, rgba(0,0,0,0.25) 0deg)`;
@@ -452,6 +480,15 @@ export class Hud {
     const seen = new Set<string>();
     const pl = g.playerTank;
     const list = [...g.mission.markers];
+    for (const fm of g.artillery.missions) {
+      list.push({
+        id: `arty${fm.id}`,
+        label: fm.eta > 0 ? `Rounds in ${Math.ceil(fm.eta)}s` : 'Impact',
+        kind: 'zone',
+        pos: () => new THREE.Vector3(fm.x, g.world.h(fm.x, fm.z) + 3, fm.z),
+        radius: fm.radius,
+      });
+    }
     if (g.platoon.order === 'move' && g.platoon.movePoint) {
       const mp = g.platoon.movePoint;
       list.push({ id: 'waypoint', label: 'Move', kind: 'objective', pos: () => new THREE.Vector3(mp.x, g.world.h(mp.x, mp.z) + 2, mp.z) });

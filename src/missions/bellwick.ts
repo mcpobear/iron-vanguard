@@ -37,6 +37,8 @@ export const BELLWICK_INFO: MissionInfo = {
   map: BELLWICK,
   fog: { color: 0xcfd8dc, near: 90, far: 520 },
   order: 1,
+  // the introductory mission stays gentler than the rest of the campaign
+  enemySkill: 0.85,
   forces: {
     friendly: '4 × A-44 Sentinel, Able Company 9th Airborne',
     enemy: 'V-32 Boar light tanks, V-41 Ox medium tanks, infantry, machine-gun positions',
@@ -55,6 +57,7 @@ const HQ = 'Regiment HQ';
 export class BellwickMission implements MissionScript {
   info = BELLWICK_INFO;
   playerStart = POINTS.playerStart;
+  victoryFocus = POINTS.squareCentre;
   objectiveText = '';
   markers: Marker[] = [];
   phaseIndex = 0;
@@ -93,8 +96,8 @@ export class BellwickMission implements MissionScript {
     const P = POINTS;
     // Enemy forces are placed now but stay dormant until their phase (no unfair long-range sniping).
     this.boar1 = g.spawnEnemy('V-32', P.farmBoar.x, P.farmBoar.z, P.farmBoar.heading, { aggression: 0.3, retreatTo: { x: -160, z: -40 } });
-    this.boar2 = g.spawnEnemy('V-32', P.boar2.x, P.boar2.z, P.boar2.heading, { aggression: 0.6, retreatTo: { x: 40, z: 120 }, patrol: [P.boarPatrolA, P.boarPatrolB] });
-    this.ox1 = g.spawnEnemy('V-41', P.ox1.x, P.ox1.z, P.ox1.heading, { aggression: 0.2, retreatTo: P.enemyRetreat, patrol: [P.oxPatrolA, P.oxPatrolB] });
+    this.boar2 = g.spawnEnemy('V-32', P.boar2.x, P.boar2.z, P.boar2.heading, { aggression: 0.6, retreatTo: { x: 40, z: 120 }, patrol: [P.boarPatrolA, P.boarPatrolB], preferredRange: 80 });
+    this.ox1 = g.spawnEnemy('V-41', P.ox1.x, P.ox1.z, P.ox1.heading, { aggression: 0.2, retreatTo: P.enemyRetreat, patrol: [P.oxPatrolA, P.oxPatrolB], preferredRange: 90 });
     this.ox2 = g.spawnEnemy('V-41', P.ox2.x, P.ox2.z, P.ox2.heading, { aggression: 0.2, retreatTo: P.enemyRetreat });
     this.nest = g.infantry.addNest('Orchard MG nest', P.mgNest.x, P.mgNest.z, Math.PI, { arc: 1.5, range: 150 });
     // Fixed MG in the town, firing down the high street at the airborne's approach.

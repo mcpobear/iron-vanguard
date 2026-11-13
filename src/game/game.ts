@@ -11,7 +11,7 @@ import { EnemyAI, type EnemyOpts } from '../ai/tankAI';
 import { MissionTracker } from '../progression/tracker';
 import type { CampaignState, MissionResult } from '../campaign/types';
 import { Input } from '../core/input';
-import { presetValues, usesTouch, type Settings } from '../core/settings';
+import { DIFFICULTY, presetValues, usesTouch, type DifficultyValues, type Settings } from '../core/settings';
 import { makeRng, type Rng } from '../core/rng';
 import { Hud } from '../ui/hud';
 import type { MissionScript } from '../missions/mission';
@@ -57,7 +57,7 @@ export class Game {
   enemySpotted = new Set<number>();
   /** Tutorial: AI tanks hold fire on enemy armour until this time (cancelled if a friendly is hit). */
   aiHoldFireUntil = 0;
-  difficulty = { enemyDamage: 0.7, enemyAcquire: 3.6, enemySpread: 2.5, firstShotDelay: 3 };
+  difficulty: DifficultyValues;
   private enemyAIs: EnemyAI[] = [];
   private scheduled: { at: number; fn: () => void }[] = [];
   private raf = 0;
@@ -100,6 +100,16 @@ export class Game {
     this.shadowsOn = pv.shadows;
     this.touch = usesTouch(settings);
     this.rng = makeRng(Date.now() & 0xffffffff);
+    // Later missions are fought by better Varkovian formations.
+    const base = DIFFICULTY[settings.difficulty] ?? DIFFICULTY.veteran;
+    const step = mission.info.enemySkill ?? 1;
+    this.difficulty = {
+      ...base,
+      enemyDamage: base.enemyDamage * step,
+      enemyAcquire: base.enemyAcquire / step,
+      enemySpread: base.enemySpread / step,
+      firstShotDelay: base.firstShotDelay / step,
+    };
     this.renderer = new THREE.WebGLRenderer({ antialias: pv.antialias, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(pv.pixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -352,8 +362,14 @@ export class Game {
     this.hud.showFailed();
   }
 
+  /** Seconds the end-of-mission camera has been running (missions use it for timing). */
+  get victoryTime() {
+    return this.victoryT;
+  }
+
   beginVictory() {
     this.victory = true;
+    this.victoryT = 0;
     this.input.resetAll();
     this.input.enabled = false;
     this.input.exitPointerLock();
@@ -361,13 +377,21 @@ export class Game {
     this.closeOverlays();
     this.hud.setControlsVisible(false);
     this.hud.root.classList.add('cinematic');
+    this.hud.showSkip();
     for (const t of this.tanks) if (t.side === 'ally') t.throttle = t.steer = 0;
   }
 
   showVictory() {
+    if (this.finished) return;
     this.finished = true;
     this.audio.playMusic(1);
+    this.hud.hideSkip();
     this.hud.showVictory();
+  }
+
+  /** Player tapped SKIP during the end-of-mission camera. */
+  skipCinematic() {
+    this.showVictory();
   }
 
   missionResult(success: boolean): MissionResult {
@@ -607,7 +631,8 @@ export class Game {
     const cam = this.camera;
     if (this.victory) {
       this.victoryT += dt;
-      const c = new THREE.Vector3(0, this.world.h(0, 140), 140);
+      const f = this.mission.victoryFocus ?? { x: p.pos.x, z: p.pos.z };
+      const c = new THREE.Vector3(f.x, this.world.h(f.x, f.z), f.z);
       const a = this.victoryT * 0.12 + 2.4;
       cam.position.lerp(new THREE.Vector3(c.x + Math.sin(a) * 34, c.y + 13, c.z + Math.cos(a) * 34), Math.min(1, dt * 1.5));
       cam.lookAt(c.x, c.y + 6, c.z);

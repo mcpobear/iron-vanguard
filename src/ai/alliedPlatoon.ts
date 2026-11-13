@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Tank, wrap } from '../vehicles/tank';
-import { driveTo, lineOfFireClear, newDrive, type DriveState } from './tankAI';
+import { driveTo, lineOfFireClear, newDrive, visiblePoint, type DriveState } from './tankAI';
 import type { Game } from '../game/game';
 import { TANKS } from '../data/tanks';
 import { makeRng, pick, type Rng } from '../core/rng';
@@ -18,6 +18,7 @@ export interface AlliedMember {
   stopT: number;
   reportedT: number;
   skill: number;
+  seenAt?: THREE.Vector3;
 }
 
 const FIRST = ['Marcus', 'Roland', 'Edwin', 'Tobias', 'Albert', 'Clement', 'Nathaniel', 'Reginald', 'Percy', 'Aubrey', 'Desmond', 'Gilbert'];
@@ -132,7 +133,9 @@ export class AlliedPlatoon {
       const c = e.centre();
       const d = c.distanceTo(eye);
       if (d > t.def.spotRange) continue;
-      if (!g.world.col.lineOfSight(eye.x, eye.y, eye.z, c.x, c.y, c.z)) continue;
+      const seen = visiblePoint(t, e, g);
+      if (!seen) continue;
+      m.seenAt = seen;
       let score = d;
       if (e.def.cls === 'heavy') score -= 60;
       if (e === m.target) score -= 40;
@@ -155,7 +158,7 @@ export class AlliedPlatoon {
       m.acquire += dt / (2.6 * m.skill);
       if (m.acquire >= 1) {
         const tgt = m.target;
-        const c = tgt.centre();
+        const c = (m.seenAt ?? tgt.centre()).clone();
         const flight = c.distanceTo(t.centre()) / t.def.gun.velocity.AP;
         const lead = c.add(tgt.forward().multiplyScalar(tgt.speed * flight));
         t.ammoSel = 'AP';

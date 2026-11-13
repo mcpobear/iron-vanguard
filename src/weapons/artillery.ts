@@ -25,8 +25,9 @@ export class Artillery {
   available = 0;
   /** Seconds before another mission can be called. */
   cooldown = 0;
-  readonly cooldownLength = 55;
-  readonly flightTime = 40;
+  readonly cooldownLength = 45;
+  // Long enough that you must lead a moving target, short enough to stay in the fight.
+  readonly flightTime = 22;
   readonly roundsPerMission = 18;
   readonly radius = 22;
   /** Set true once the battery is in action (phase-gated by the mission). */
@@ -63,7 +64,8 @@ export class Artillery {
     this.missions.push(m);
     this.lastTarget = new THREE.Vector3(x, g.world.h(x, z), z);
     const bearing = Math.round(Math.hypot(x - (g.playerTank?.pos.x ?? 0), z - (g.playerTank?.pos.z ?? 0)));
-    g.radio('Hammer Battery', `Fire mission acknowledged, ${bearing} metres from your position. Shot in ${this.flightTime} seconds — keep your heads down.`);
+    g.radio('Hammer Battery', `Fire mission acknowledged, ${bearing} metres from your position. Rounds in ${this.flightTime} seconds — keep your heads down.`);
+    g.hud.flash(`FIRE MISSION SENT — IMPACT IN ${this.flightTime}s`);
     g.audio.radio();
     // warn if friendly troops or tanks are inside the beaten zone
     if (this.dangerCount(x, z) > 0) {
@@ -91,7 +93,7 @@ export class Artillery {
       if (m.eta > 0) {
         m.eta -= dt;
         // whistle of incoming just before impact
-        if (m.eta <= 2.5 && m.eta + dt > 2.5) {
+        if (m.eta <= 3.5 && m.eta + dt > 3.5) {
           g.radio('Hammer Battery', 'Shot — out!');
           g.audio.incoming(new THREE.Vector3(m.x, g.world.h(m.x, m.z) + 20, m.z));
         }
