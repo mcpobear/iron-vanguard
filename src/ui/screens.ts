@@ -4,8 +4,9 @@ import { RANKS, rankAbbr, rankName } from '../data/ranks';
 import { MEDALS } from '../data/medals';
 import { portraitCanvas, rankCanvas, medalCanvas } from './art';
 import { previewResult } from '../progression/debrief';
-import type { Settings } from '../core/settings';
+import { APP_VERSION, type Settings } from '../core/settings';
 import type { MissionInfo } from '../missions/mission';
+import { isUnlocked, MISSIONS, type MissionEntry } from '../missions/registry';
 import { drawAlderlandRoundel } from '../rendering/textures';
 
 export const h = (html: string) => {
@@ -23,6 +24,8 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).
 
 export interface ScreenHost {
   root: HTMLElement;
+  missions: MissionEntry[];
+  selectMission(id: string): void;
   campaign: CampaignState | null;
   settings: Settings;
   show(name: string, arg?: any): void;
@@ -68,6 +71,7 @@ export function mainMenu(host: ScreenHost): HTMLElement {
         <button class="btn big" data-a="settings">SETTINGS</button>
       </div>
       <p class="tagline">“Machines can be replaced. The men who command them cannot.”</p>
+      <p class="version">Version ${APP_VERSION} · ${MISSIONS.length} missions</p>
     </div></div>`);
   s.querySelector('.emb')!.appendChild(emblem(72));
   s.querySelectorAll<HTMLElement>('[data-a]').forEach((b) =>
@@ -87,21 +91,13 @@ export function mainMenu(host: ScreenHost): HTMLElement {
 
 export function staging(host: ScreenHost): HTMLElement {
   const c = host.campaign!;
-  const done = c.completedMissions.includes('bellwick');
   const body = h(`<div class="staging">
     <div class="st-head">
       <div><small>3rd Armoured Regiment · 2nd Armoured Brigade</small><h2>Regimental Staging Area</h2><div class="muted">${fmtDate(c.warDate)} · Operation Dawn Spear</div></div>
       <div class="cohesion"><small>PLATOON COHESION</small><div class="meter"><i style="width:${c.cohesion}%"></i></div><b>${c.cohesion}</b></div>
     </div>
     <div class="slots"></div>
-    <div class="missions">
-      <div class="mission-card ${done ? 'done' : 'ready'}" data-a="brief">
-        <small>MISSION 1 · ${host.mission.campaign}</small><h3>${host.mission.name}</h3>
-        <div class="muted">${host.mission.location} · ${host.mission.time} · ${host.mission.weather}</div>
-        <b>${done ? '✓ COMPLETED' : 'BRIEFING ›'}</b>
-      </div>
-      <div class="mission-card locked"><small>MISSION 2</small><h3>Coming Soon</h3><div class="muted">The advance continues beyond Bellwick.</div><b>LOCKED</b></div>
-    </div>
+    <div class="missions"></div>
     <div class="st-nav">
       <button class="btn" data-s="personnel">PERSONNEL</button>
       <button class="btn" data-s="honour">ROLL OF HONOUR</button>
@@ -125,8 +121,22 @@ export function staging(host: ScreenHost): HTMLElement {
     }
     slots.appendChild(card);
   }
-  const mc = body.querySelector('[data-a="brief"]') as HTMLElement;
-  if (!done) mc.addEventListener('click', () => host.show('briefing'));
+  const missions = body.querySelector('.missions')!;
+  for (const m of host.missions) {
+    const complete = c.completedMissions.includes(m.info.id);
+    const unlocked = isUnlocked(m, c.completedMissions);
+    const cls = complete ? 'done' : unlocked ? 'ready' : 'locked';
+    const card = h(`<div class="mission-card ${cls}">
+      <small>MISSION ${m.info.order} · ${esc(m.info.campaign)}</small><h3>${esc(m.info.name)}</h3>
+      <div class="muted">${esc(m.info.location)} · ${esc(m.info.time)} · ${esc(m.info.weather)}</div>
+      <div class="muted">Difficulty: ${esc(m.info.difficulty)} · ${esc(m.info.duration)}</div>
+      <b>${complete ? '✓ COMPLETED' : unlocked ? 'BRIEFING ›' : 'LOCKED'}</b></div>`);
+    if (unlocked && !complete) card.addEventListener('click', () => host.selectMission(m.info.id));
+    else if (complete) card.addEventListener('click', () => host.selectMission(m.info.id));
+    missions.appendChild(card);
+  }
+  if (host.missions.every((m) => c.completedMissions.includes(m.info.id)))
+    missions.appendChild(h('<div class="mission-card locked"><small>NEXT</small><h3>Coming Soon</h3><div class="muted">The war continues beyond Kessler Ridge.</div><b>LOCKED</b></div>'));
   body.querySelectorAll<HTMLElement>('[data-s]').forEach((b) => b.addEventListener('click', () => host.show(b.dataset.s!)));
   return screen('VANGUARD 1 PLATOON', null, body, host);
 }
@@ -155,7 +165,7 @@ export function briefing(host: ScreenHost): HTMLElement {
         })
         .join('')}</div>
       <small>FORCES</small>
-      <div class="muted">Friendly: 4 × A-44 Sentinel, Able Company 9th Airborne<br>Enemy (reported): V-32 Boar light tanks, V-41 Ox medium tanks, infantry, machine-gun positions</div>
+      <div class="muted">Friendly: ${esc(m.forces?.friendly ?? '4 × A-44 Sentinel')}<br>Enemy (reported): ${esc(m.forces?.enemy ?? 'unknown')}</div>
       <p class="warn">Commanders can be killed permanently. Losses are committed when the mission debrief is confirmed. Restarting before then restores the platoon.</p>
       <button class="btn big primary deploy">DEPLOY</button>
     </div></div>`);

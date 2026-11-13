@@ -78,6 +78,7 @@ export interface Commander {
   tankKills: number;
   lightTankKills: number;
   mediumTankKills: number;
+  heavyTankKills: number;
   positionsDestroyed: number;
   infantryKills: number;
   achievements: string[];
@@ -165,6 +166,7 @@ export interface CommanderMissionStats {
   tankKills: number;
   lightKills: number;
   mediumKills: number;
+  heavyKills: number;
   damagingHits: number;
   positions: number;
   infantry: number;

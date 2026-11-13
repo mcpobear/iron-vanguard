@@ -4,6 +4,7 @@ import type { Marker, MissionInfo, MissionScript } from './mission';
 import { BELLWICK, POINTS } from './bellwickMap';
 import type { Tank } from '../vehicles/tank';
 import type { MGNest, Squad, Soldier } from '../infantry/infantry';
+import { strongpointGeometry } from '../rendering/models';
 
 export const BELLWICK_INFO: MissionInfo = {
   id: 'bellwick',
@@ -35,6 +36,16 @@ export const BELLWICK_INFO: MissionInfo = {
   ],
   map: BELLWICK,
   fog: { color: 0xcfd8dc, near: 90, far: 520 },
+  order: 1,
+  forces: {
+    friendly: '4 × A-44 Sentinel, Able Company 9th Airborne',
+    enemy: 'V-32 Boar light tanks, V-41 Ox medium tanks, infantry, machine-gun positions',
+  },
+  mapLabels: [
+    { text: 'BELLWICK', x: 0, z: 205 },
+    { text: 'Hollow Wood', x: POINTS.strongpoint.x, z: 100 },
+    { text: 'Orchards', x: POINTS.orchardTroops.x, z: 22 },
+  ],
 };
 
 const v3 = (p: { x: number; z: number }, g: Game, dy = 2) => new THREE.Vector3(p.x, g.world.h(p.x, p.z) + dy, p.z);
@@ -43,6 +54,7 @@ const HQ = 'Regiment HQ';
 
 export class BellwickMission implements MissionScript {
   info = BELLWICK_INFO;
+  playerStart = POINTS.playerStart;
   objectiveText = '';
   markers: Marker[] = [];
   phaseIndex = 0;
@@ -68,6 +80,14 @@ export class BellwickMission implements MissionScript {
   private crossing = false;
   private victoryT = -1;
   private startDist = 0;
+
+  buildScenery(g: Game) {
+    // Hollow Wood strongpoint — the anti-tank gun that covers the open crossing.
+    const sp = new THREE.Mesh(strongpointGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
+    sp.position.set(POINTS.strongpoint.x, g.world.h(POINTS.strongpoint.x, POINTS.strongpoint.z), POINTS.strongpoint.z);
+    sp.rotation.y = Math.PI / 2 + 0.2;
+    g.scene.add(sp);
+  }
 
   start(g: Game) {
     const P = POINTS;

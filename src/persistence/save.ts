@@ -40,6 +40,11 @@ export function migrate(raw: any): CampaignState | null {
     s.replacementsIssued = s.replacementsIssued ?? { commanders: 0, tanks: 0 };
     s.schemaVersion = 2;
   }
+  if (s.schemaVersion === 2) {
+    // v2 → v3: heavy-tank kill counters, introduced with the V-58 Bastion.
+    for (const c of Object.values(s.commanders ?? {}) as any[]) c.heavyTankKills = c.heavyTankKills ?? 0;
+    s.schemaVersion = 3;
+  }
   if (s.schemaVersion !== SCHEMA_VERSION) return null;
   return s as CampaignState;
 }

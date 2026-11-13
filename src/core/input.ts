@@ -229,6 +229,9 @@ export class Input {
       case 'm':
         this.actions.add('map');
         break;
+      case 'r':
+        this.actions.add('artillery');
+        break;
       case 'escape':
         this.actions.add('pause');
         break;

@@ -1,7 +1,7 @@
 import type * as THREE from 'three';
 import type { Game } from '../game/game';
 import type { Soldier } from '../infantry/infantry';
-import type { MapDef } from './bellwickMap';
+import type { MapDef } from './mapTypes';
 
 export interface Marker {
   id: string;
@@ -24,10 +24,19 @@ export interface MissionInfo {
   objectives: string[];
   map: MapDef;
   fog: { color: number; near: number; far: number };
+  /** Place names drawn on the tactical map. */
+  mapLabels?: { text: string; x: number; z: number }[];
+  /** Shown on the mission card in the staging area. */
+  order: number;
+  forces?: { friendly: string; enemy: string };
 }
 
 export interface MissionScript {
   info: MissionInfo;
+  /** Where the platoon deploys, and which way it faces. */
+  playerStart: { x: number; z: number; heading: number };
+  /** Optional per-mission scenery (gun lines, wrecks) added once at load. */
+  buildScenery?(g: Game): void;
   objectiveText: string;
   markers: Marker[];
   phaseIndex: number;

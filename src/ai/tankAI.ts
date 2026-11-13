@@ -335,6 +335,8 @@ export class EnemyAI {
   mgCd = 0;
   turretScanT = 0;
   scanDir = 1;
+  /** Seconds with nothing to shoot at and nobody near — a straggler eventually withdraws. */
+  idleT = 0;
 
   constructor(public tank: Tank, public o: EnemyOpts) {
     this.lastHp = tank.hp;
@@ -459,6 +461,17 @@ export class EnemyAI {
     }
     if (this.huntT > 0) this.huntT -= dt;
 
+    // A tank left behind with nothing to fight drifts out of the battle rather than
+    // stalling the mission forever.
+    if (!this.target && this.mode !== 'retreat' && this.mode !== 'advance') {
+      const nearest = g.tanks.reduce((best, a) => (a.side === 'ally' && a.alive ? Math.min(best, a.pos.distanceTo(t.pos)) : best), 1e9);
+      this.idleT = nearest > 150 ? this.idleT + dt : 0;
+      if (this.idleT > 35) {
+        this.idleT = 0;
+        this.mode = 'retreat';
+      }
+    } else this.idleT = 0;
+
     // movement
     if (this.stopT > 0) {
       this.stopT -= dt;
@@ -547,8 +560,10 @@ export class EnemyAI {
           g.radio('Crew', `Enemy ${t.def.cls} tank is withdrawing!`);
         }
         driveTo(t, r.x, r.z, g, this.ds, dt, 1, 10);
-        const pl = g.playerTank;
-        if (Math.hypot(r.x - t.pos.x, r.z - t.pos.z) < 30 || (pl && pl.pos.distanceTo(t.pos) > 260)) g.enemyDrivenOff(t);
+        // Leaves the battle once it reaches its rally point, or once it is clear of every
+        // friendly platoon — not merely clear of the player, who may be on the far flank.
+        const nearestAlly = g.tanks.reduce((best, a) => (a.side === 'ally' && a.alive ? Math.min(best, a.pos.distanceTo(t.pos)) : best), 1e9);
+        if (Math.hypot(r.x - t.pos.x, r.z - t.pos.z) < 30 || nearestAlly > 300) g.enemyDrivenOff(t);
         break;
       }
     }

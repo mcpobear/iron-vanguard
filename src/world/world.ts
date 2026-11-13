@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GeoBuilder, VC_MATERIAL } from '../rendering/geo';
 import { CollisionWorld } from './collision';
 import { Terrain, distToRoads } from './terrain';
-import type { MapDef, P } from '../missions/bellwickMap';
+import type { MapDef, P } from '../missions/mapTypes';
 import { makeRng } from '../core/rng';
 import { flagTexture } from '../rendering/textures';
 
@@ -112,6 +112,7 @@ export class World {
 
   private buildTown(gb: GeoBuilder) {
     const { townPlots: tp, square: sq, church } = this.def;
+    if (!tp || !sq || !church || !this.def.town) return;
     const rng = this.rng;
     // Church: nave, tower, spire.
     const cb = this.h(church.x, church.z) - 0.5;
@@ -141,9 +142,9 @@ export class World {
       }
     }
     for (const v of this.def.villageHouses) this.house(gb, v.x, v.z, 8, 9, 6, v.rot);
-    // square paving border and fountain-less centre plinth
-    const sh = this.h(0, 140);
-    gb.box(0, sh + 0.25, 140, 6, 0.5, 6, 0x9a9384);
+    // square paving centre plinth
+    const cx = (sq.minX + sq.maxX) / 2, cz = (sq.minZ + sq.maxZ) / 2 - 2;
+    gb.box(cx, this.h(cx, cz) + 0.25, cz, 6, 0.5, 6, 0x9a9384);
   }
 
   private buildFarms(gb: GeoBuilder) {
@@ -221,6 +222,7 @@ export class World {
 
   private buildBridge(gb: GeoBuilder) {
     const b = this.def.bridge;
+    if (!b) return;
     const y = this.h(b.x, b.z);
     gb.box(b.x, y - 0.25, b.z, b.width, 0.6, b.len, 0x8f8a7e);
     for (const sx of [-1, 1]) {
@@ -254,11 +256,32 @@ export class World {
       const y = this.h(b.x, b.z);
       this.col.addBox({ minX: b.x - ex, maxX: b.x + ex, minZ: b.z - ez, maxZ: b.z + ez, y0: y - 2, y1: y + 1.3, blocksLOS: false, solid: true, kind: 'barricade' });
     }
-    // telegraph poles along the main road
-    for (let z = -280; z < 80; z += 34) {
-      const x = 9, y = this.h(x, z);
-      gb.box(x, y + 4, z, 0.3, 8, 0.3, 0x6b4f35);
-      gb.box(x, y + 7.4, z, 2, 0.2, 0.2, 0x6b4f35);
+    // telegraph poles beside the main road
+    const main = this.def.roads.find((r) => r.main);
+    if (main) {
+      const pts = main.pts;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [ax, az] = pts[i], [bx, bz] = pts[i + 1];
+        const L = Math.hypot(bx - ax, bz - az);
+        for (let d = 0; d < L; d += 34) {
+          const t = d / L;
+          const px = ax + (bx - ax) * t - 9, pz = az + (bz - az) * t;
+          if (this.col.pointBlocked(px, pz, 1)) continue;
+          const y = this.h(px, pz);
+          gb.box(px, y + 4, pz, 0.3, 8, 0.3, 0x6b4f35);
+          gb.box(px, y + 7.4, pz, 2, 0.2, 0.2, 0x6b4f35);
+        }
+      }
+    }
+    // sandbag gun pits (artillery / anti-tank emplacements)
+    for (const gp of this.def.gunPits ?? []) {
+      const y = this.h(gp.x, gp.z);
+      for (let i = 0; i < 16; i++) {
+        const a = gp.rot + (i / 16) * Math.PI * 2;
+        if (Math.abs(((a - gp.rot + Math.PI) % (Math.PI * 2)) - Math.PI) < 0.5) continue;
+        for (let row = 0; row < 2; row++) gb.box(gp.x + Math.sin(a) * 3.4, y + 0.3 + row * 0.5, gp.z + Math.cos(a) * 3.4, 1.2, 0.5, 0.8, row ? 0xb8a37a : 0xa8936a, a, 0.12);
+      }
+      this.col.addBox({ minX: gp.x - 3.8, maxX: gp.x + 3.8, minZ: gp.z - 3.8, maxZ: gp.z + 3.8, y0: y - 2, y1: y + 1.2, blocksLOS: false, solid: true, kind: 'gunpit' });
     }
   }
 
@@ -364,7 +387,8 @@ export class World {
   }
 
   private buildFlag() {
-    const { x, z } = { x: 0, z: 140 };
+    const sq = this.def.square;
+    const { x, z } = sq ? { x: (sq.minX + sq.maxX) / 2, z: (sq.minZ + sq.maxZ) / 2 - 2 } : { x: 0, z: 0 };
     const y = this.h(x, z);
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 12, 6), new THREE.MeshLambertMaterial({ color: 0xdddddd }));
     pole.position.set(x, y + 6.5, z);
@@ -392,11 +416,13 @@ export class World {
   }
 
   private buildWater() {
+    if (!this.def.streamZ) return;
+    const streamZ = this.def.streamZ;
     const pos: number[] = [];
     for (let x = -this.def.half; x < this.def.half; x += 4) {
-      const z0 = this.def.streamZ(x), z1 = this.def.streamZ(x + 4);
+      const z0 = streamZ(x), z1 = streamZ(x + 4);
       const w = 2.4;
-      if (Math.abs(x + 2 - this.def.bridge.x) < this.def.bridge.width / 2 + 2) continue;
+      if (this.def.bridge && Math.abs(x + 2 - this.def.bridge.x) < this.def.bridge.width / 2 + 2) continue;
       const y = -0.5 + Math.min(this.h(x, z0), this.h(x + 4, z1)) * 0 + Math.min(this.h(x, z0 + 4), this.h(x, z0 - 4)) - 0.55;
       pos.push(x, y, z0 - w, x, y, z0 + w, x + 4, y, z1 + w, x, y, z0 - w, x + 4, y, z1 + w, x + 4, y, z1 - w);
     }

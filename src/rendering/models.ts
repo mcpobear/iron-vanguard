@@ -37,12 +37,15 @@ const STYLES: Record<string, Style> = {
   'A-44': { hull: 0x5d7a3a, hull2: 0x6d8a46, dark: 0x3c4e28, turretShape: 'round', turretSize: [2.35, 0.95, 2.7], turretZ: -0.3, gunLen: 4.3, gunR: 0.11, wheels: 5, slopedFront: true, camo: null },
   'V-32': { hull: 0x737268, hull2: 0x83827a, dark: 0x4a4944, turretShape: 'box', turretSize: [1.6, 0.8, 1.8], turretZ: 0.1, gunLen: 2.1, gunR: 0.07, wheels: 4, slopedFront: false, camo: 0x7a5a3a },
   'V-41': { hull: 0x7a6a52, hull2: 0x8a7a60, dark: 0x4f4433, turretShape: 'hex', turretSize: [2.5, 1.05, 2.6], turretZ: -0.2, gunLen: 3.4, gunR: 0.1, wheels: 5, slopedFront: false, camo: 0x5e6b4a },
+  'V-58': { hull: 0x5e5a4a, hull2: 0x6e6a58, dark: 0x3a382e, turretShape: 'hex', turretSize: [3.1, 1.3, 3.2], turretZ: -0.1, gunLen: 5.0, gunR: 0.15, wheels: 7, slopedFront: true, camo: 0x7a3b2a },
 };
+
+const FALLBACK_STYLE: Style = STYLES['V-41'];
 
 const trackGeo = new THREE.BoxGeometry(1, 1, 1);
 
 export function buildTankModel(def: TankDef, number: string, castShadow: boolean): TankView {
-  const st = STYLES[def.id];
+  const st = STYLES[def.id] ?? FALLBACK_STYLE;
   const { length: L, width: W, height: H } = def.hull;
   const root = new THREE.Group();
   const body = new THREE.Group();
@@ -85,6 +88,14 @@ export function buildTankModel(def: TankDef, number: string, castShadow: boolean
     }
     gb.cylinder(sx * (W / 2 + 0.02), 0.85, L * 0.46, 0.36, 0.16, 0x2e2e2c, 8, 0, 0, Math.PI / 2);
     gb.cylinder(sx * (W / 2 + 0.02), 0.8, -L * 0.46, 0.34, 0.16, 0x2e2e2c, 8, 0, 0, Math.PI / 2);
+  }
+  // bolted-on spaced armour marks the heavy out at a glance
+  if (def.cls === 'heavy') {
+    for (const sx of [-1, 1]) {
+      gb.box(sx * (W / 2 - trackW * 0.1), deck - 0.5, L * 0.1, 0.22, 0.9, L * 0.5, st.hull2);
+      gb.box(sx * (W * 0.3), deck + 0.12, L * 0.2, 0.5, 0.2, 1.4, st.dark);
+    }
+    gb.box(0, deck - 0.5, L * 0.47, W * 0.8, 0.9, 0.3, st.hull2, 0, 0, -0.5);
   }
   // camo blotches for Varkovian vehicles
   if (st.camo !== null) {

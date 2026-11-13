@@ -44,7 +44,7 @@ export class Platoon {
   constructor(private g: Game) {}
 
   rebuild(tanks: Tank[]) {
-    this.ais = tanks.filter((t) => t.side === 'ally').map((t) => this.ais.find((a) => a.tank === t) ?? new FriendlyAI(t));
+    this.ais = tanks.filter((t) => t.side === 'ally' && !t.allied).map((t) => this.ais.find((a) => a.tank === t) ?? new FriendlyAI(t));
   }
 
   /** AI tanks (excluding the player) in succession order — used for formation slots. */

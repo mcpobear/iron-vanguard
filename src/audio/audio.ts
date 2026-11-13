@@ -324,6 +324,40 @@ export class Audio {
     }
   }
 
+  /** Rising shriek of incoming shells. */
+  incoming(p: THREE.Vector3) {
+    const o = this.out(p, 160, 0.6);
+    if (!o || !this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    for (let i = 0; i < 3; i++) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      const st = t + i * 0.22;
+      osc.frequency.setValueAtTime(260 + i * 60, st);
+      osc.frequency.exponentialRampToValueAtTime(1500 + i * 180, st + 1.9);
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.Q.value = 7;
+      f.frequency.setValueAtTime(600, st);
+      f.frequency.exponentialRampToValueAtTime(2200, st + 1.9);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, st);
+      g.gain.exponentialRampToValueAtTime(0.16, st + 1.4);
+      g.gain.exponentialRampToValueAtTime(0.0001, st + 2.1);
+      osc.connect(f).connect(g).connect(o);
+      osc.start(st);
+      osc.stop(st + 2.2);
+    }
+  }
+
+  /** Distant battery firing — the outgoing thud when a fire mission is sent. */
+  batteryFire(p: THREE.Vector3) {
+    const o = this.out(p, 400, 0.9);
+    if (!o) return;
+    for (let i = 0; i < 4; i++) this.noiseBurst(o, 1.6, 'lowpass', 280, 40, 0.7, i * 0.18);
+  }
+
   /** Occasional distant guns to keep the battlefield alive. */
   ambientTick(dt: number) {
     if (!this.ctx || Math.random() > dt * 0.12) return;

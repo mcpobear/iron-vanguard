@@ -17,9 +17,9 @@ import { Hud } from '../ui/hud';
 import type { MissionScript } from '../missions/mission';
 import { rankAbbr } from '../data/ranks';
 import { successionOrder, nextCommandIndex } from '../campaign/campaign';
-import { strongpointGeometry } from '../rendering/models';
-import { POINTS } from '../missions/bellwickMap';
 import { hitTankSegment } from '../weapons/weapons';
+import { Artillery } from '../weapons/artillery';
+import type { AlliedPlatoon } from '../ai/alliedPlatoon';
 
 export interface GameCallbacks {
   onComplete(result: MissionResult): void;
@@ -38,6 +38,9 @@ export class Game {
   infantry: Infantry;
   weapons: Weapons;
   platoon: Platoon;
+  artillery: Artillery;
+  /** Other Alderland platoons fighting alongside the player (mission-supplied). */
+  alliedPlatoons: AlliedPlatoon[] = [];
   tracker: MissionTracker;
   input: Input;
   hud: Hud;
@@ -73,6 +76,10 @@ export class Game {
   private victory = false;
   private victoryT = 0;
   private finished = false;
+  /** True once the mission has been won or lost (missions use this to stop spawning). */
+  get finishedMission() {
+    return this.finished || this.victory;
+  }
   aimHit: { point: THREE.Vector3; tank: Tank | null } | null = null;
   barrelHit = new THREE.Vector3();
   targetTank: Tank | null = null;
@@ -130,21 +137,18 @@ export class Game {
     this.effects.glow.setFog(fog.near, Math.min(fog.far, pv.viewDist));
     this.effects.smoke.setFog(fog.near, Math.min(fog.far, pv.viewDist));
     this.scene.add(this.effects.group);
-    // Hollow Wood strongpoint (scenery for the smoke phase)
-    const sp = new THREE.Mesh(strongpointGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
-    sp.position.set(POINTS.strongpoint.x, this.world.h(POINTS.strongpoint.x, POINTS.strongpoint.z), POINTS.strongpoint.z);
-    sp.rotation.y = Math.PI / 2 + 0.2;
-    this.scene.add(sp);
 
     this.infantry = new Infantry(this);
     this.weapons = new Weapons(this);
     this.platoon = new Platoon(this);
+    this.artillery = new Artillery(this);
     this.tracker = new MissionTracker(mission.info.id, mission.info.name);
 
     this.hud = new Hud(this);
     this.input = new Input(this.hud.touchLayer, this.renderer.domElement, () => this.settings);
     this.input.setVisible(this.touch);
 
+    mission.buildScenery?.(this);
     this.spawnPlatoon();
     mission.start(this);
     const pl = this.playerTank!;
@@ -160,7 +164,7 @@ export class Game {
 
   private spawnPlatoon() {
     const s = this.campaign;
-    const start = POINTS.playerStart;
+    const start = this.mission.playerStart;
     const order = successionOrder(s);
     order.forEach((slot, i) => {
       const c = s.commanders[slot.commanderId!];
@@ -279,7 +283,7 @@ export class Game {
     this.radio(t.isPlayer ? 'Crew' : 'Vanguard', `${t.callsign} ${what}! ${outcomeText}.`);
     if (t.crew === 'killed') this.hud.casualtyNotice(t);
     if (t.isPlayer) this.beginTransfer(t);
-    else if (!this.tanks.some((k) => k.side === 'ally' && k.alive)) this.fail();
+    else if (!this.tanks.some((k) => k.side === 'ally' && !k.allied && k.alive)) this.fail();
   }
 
   onEnemyKnockedOut(t: Tank, killer: Tank | null) {
@@ -295,9 +299,10 @@ export class Game {
   // ---------------------------------------------------------------- command succession
 
   private beginTransfer(from: Tank) {
-    const order = this.tanks.filter((t) => t.side === 'ally').map((t) => t.slotIndex);
-    const idx = nextCommandIndex(order, from.slotIndex, (i) => this.tanks.find((t) => t.side === 'ally' && t.slotIndex === i)?.alive ?? false);
-    const to = idx >= 0 ? this.tanks.find((t) => t.side === 'ally' && t.slotIndex === idx)! : null;
+    const own = this.tanks.filter((t) => t.side === 'ally' && !t.allied);
+    const order = own.map((t) => t.slotIndex);
+    const idx = nextCommandIndex(order, from.slotIndex, (i) => own.find((t) => t.slotIndex === i)?.alive ?? false);
+    const to = idx >= 0 ? own.find((t) => t.slotIndex === idx)! : null;
     this.input.resetAll();
     this.input.enabled = false;
     this.input.exitPointerLock();
@@ -368,7 +373,7 @@ export class Game {
   missionResult(success: boolean): MissionResult {
     // survivors' final vehicle state
     for (const t of this.tanks) {
-      if (t.side !== 'ally' || !t.commanderId) continue;
+      if (t.side !== 'ally' || t.allied || !t.commanderId) continue;
       if (t.alive) this.tracker.setVehicle(t.commanderId, t.status, Math.round(t.hp));
     }
     return this.tracker.result(success, Math.round(this.time), this.mission.info.objectives.length, this.playerTank?.commanderId ?? null);
@@ -447,9 +452,18 @@ export class Game {
     this.ordersOpen = open;
     this.hud.showOrders(open);
   }
-  openMap(open: boolean, forMove = false) {
+  openMap(open: boolean, forMove = false, forArtillery = false) {
     this.mapOpen = open;
-    this.hud.showMap(open, forMove);
+    this.hud.showMap(open, forMove, forArtillery);
+  }
+
+  /** Called when the player taps the tactical map while calling a fire mission. */
+  callArtillery(x: number, z: number) {
+    const ok = this.artillery.call(x, z, this.playerTank?.commanderId ?? null);
+    if (ok) {
+      this.audio.batteryFire(new THREE.Vector3(this.playerTank?.pos.x ?? 0, 0, (this.playerTank?.pos.z ?? 0) - 260));
+      this.openMap(false);
+    }
   }
   closeOverlays() {
     if (this.ordersOpen) this.openOrders(false);
@@ -504,7 +518,7 @@ export class Game {
         }
       }
       this.aimYaw -= look.x * sens;
-      this.aimPitch = Math.max(-0.14, Math.min(0.33, this.aimPitch - look.y * sens * inv));
+      this.aimPitch = Math.max(p.def.gunElevMin, Math.min(p.def.gunElevMax, this.aimPitch - look.y * sens * inv));
     } else {
       const sens = 0.005 * s.lookSensitivity;
       this.camYaw -= look.x * sens;
@@ -522,6 +536,7 @@ export class Game {
     if (ammo) this.selectAmmo(ammo as AmmoType);
     if (inp.consume('orders')) this.openOrders(!this.ordersOpen);
     if (inp.consume('map')) this.openMap(!this.mapOpen);
+    if (inp.consume('artillery')) this.openMap(true, false, true);
     if (inp.consume('formation')) this.platoon.cycleFormation();
   }
 
@@ -701,6 +716,8 @@ export class Game {
     }
     for (const t of this.tanks) if (t.side === 'enemy' && !t.active && t.lastHitTime > 0) t.active = true;
     this.platoon.update(dt);
+    for (const ap of this.alliedPlatoons) ap.update(dt);
+    this.artillery.update(dt);
     for (const ai of this.enemyAIs) ai.update(dt, this);
     for (const t of this.tanks) if (!t.gone) t.update(dt, this);
     this.weapons.update(dt);

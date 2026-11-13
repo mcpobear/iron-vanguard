@@ -5,7 +5,7 @@ import { newCampaign } from './campaign/campaign';
 import type { CampaignState, MissionResult } from './campaign/types';
 import { Audio } from './audio/audio';
 import { Game } from './game/game';
-import { BellwickMission, BELLWICK_INFO } from './missions/bellwick';
+import { MISSIONS, nextMission, missionById } from './missions/registry';
 import * as S from './ui/screens';
 
 class App implements S.ScreenHost {
@@ -15,7 +15,8 @@ class App implements S.ScreenHost {
   campaign: CampaignState | null = this.save.load();
   audio = new Audio();
   game: Game | null = null;
-  mission = BELLWICK_INFO;
+  missions = MISSIONS;
+  selectedMissionId: string | null = null;
   private screenEl: HTMLElement | null = null;
   private currentScreen = 'menu';
 
@@ -95,6 +96,17 @@ class App implements S.ScreenHost {
     else this.show('staging');
   }
 
+  /** The mission the player is about to brief or deploy on. */
+  get mission() {
+    const sel = this.selectedMissionId ? missionById(this.selectedMissionId) : null;
+    return (sel ?? nextMission(this.campaign?.completedMissions ?? []) ?? MISSIONS[0]).info;
+  }
+
+  selectMission(id: string) {
+    this.selectedMissionId = id;
+    this.show('briefing');
+  }
+
   deploy() {
     if (!this.campaign) return;
     this.save.snapshotPreMission(this.campaign);
@@ -117,13 +129,14 @@ class App implements S.ScreenHost {
     this.goFullscreen();
     this.audio.unlock();
     this.audio.stopMusic(1.6);
-    const loading = S.h('<div class="loading"><div>DEPLOYING TO BELLWICK…</div></div>');
+    const entry = missionById(this.mission.id) ?? MISSIONS[0];
+    const loading = S.h(`<div class="loading"><div>DEPLOYING — ${entry.info.name.toUpperCase()}…</div></div>`);
     this.root.appendChild(loading);
     requestAnimationFrame(() =>
       setTimeout(() => {
         // Work on a scratch copy: the stored campaign is never touched during combat.
         const working: CampaignState = JSON.parse(JSON.stringify(this.campaign));
-        this.game = new Game(this.root, this.settings, working, new BellwickMission(), this.audio, {
+        this.game = new Game(this.root, this.settings, working, entry.create(), this.audio, {
           onComplete: (r) => this.onComplete(r),
           onFailed: () => {},
           onQuit: () => this.endGame('menu'),

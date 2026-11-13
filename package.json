@@ -1,9 +1,9 @@
 {
   "name": "iron-vanguard",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.4.0",
   "type": "module",
-  "description": "Iron Vanguard — mobile-first tactical tank platoon game (Three.js + TypeScript)",
+  "description": "Iron Vanguard \u2014 mobile-first tactical tank platoon game (Three.js + TypeScript)",
   "scripts": {
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",

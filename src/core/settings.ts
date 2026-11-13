@@ -1,3 +1,7 @@
+declare const __APP_VERSION__: string;
+/** Build version, injected by Vite from package.json. */
+export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
+
 export type GraphicsPreset = 'low' | 'medium' | 'high';
 
 export interface Settings {

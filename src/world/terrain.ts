@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { MapDef, P } from '../missions/bellwickMap';
+import type { MapDef, P } from '../missions/mapTypes';
 
 const RES = 2; // metres per height sample
 
@@ -39,21 +39,28 @@ export class Terrain {
     this.surf = new Uint8Array(this.n * this.n);
     const { town, bridge } = def;
     const low = (x: number, z: number) => 3.2 * Math.sin(x * 0.011 + 0.4) * Math.cos(z * 0.009) + 2.2 * Math.sin((x + z) * 0.006);
-    const townLevel = low(town.x, town.z);
+    const shaped = (x: number, z: number) => (def.shape ? def.shape(x, z, low(x, z)) : low(x, z));
+    const townLevel = town ? shaped(town.x, town.z) : 0;
     for (let j = 0; j < this.n; j++)
       for (let i = 0; i < this.n; i++) {
         const x = -def.half + i * RES, z = -def.half + j * RES;
         const hi = 1.1 * Math.sin(x * 0.045 + 1.3) * Math.sin(z * 0.038) + 0.5 * Math.sin(x * 0.11) * Math.cos(z * 0.09);
         const road = distToRoads(def, x, z);
         const wRoad = 1 - smooth(road.width * 0.5, road.width * 0.5 + 10, road.d);
-        let h = low(x, z) + hi * (1 - wRoad);
-        const dt = Math.hypot(x - town.x, z - town.z);
-        const wTown = 1 - smooth(town.r * 0.6, town.r, dt);
-        h = h * (1 - wTown) + townLevel * wTown;
+        let h = shaped(x, z) + hi * (1 - wRoad);
+        if (town) {
+          const dt = Math.hypot(x - town.x, z - town.z);
+          const wTown = 1 - smooth(town.r * 0.6, town.r, dt);
+          h = h * (1 - wTown) + townLevel * wTown;
+        }
         // stream dip, suppressed under the bridge
-        const sd = Math.abs(z - def.streamZ(x));
-        const underBridge = Math.abs(x - bridge.x) < bridge.width * 0.5 + 1;
-        if (!underBridge) h -= 1.6 * Math.exp(-(sd * sd) / 22);
+        let sd = 1e9;
+        let underBridge = false;
+        if (def.streamZ) {
+          sd = Math.abs(z - def.streamZ(x));
+          underBridge = !!bridge && Math.abs(x - bridge.x) < bridge.width * 0.5 + 1;
+          if (!underBridge) h -= 1.6 * Math.exp(-(sd * sd) / 22);
+        }
         // Raised edges keep the player inside the map, but roads stay flat so the start
         // position and the exit roads never sit on a steep bank.
         const e = Math.max(Math.abs(x), Math.abs(z)) - (def.half - 45);
@@ -91,6 +98,7 @@ export class Terrain {
       pasture: [0x7fbf4f, 0x74b346],
       plough: [0x8a6a44, 0x7a5c3a],
       meadow: [0x8cc45a, 0x9acb63],
+      scrub: [0x9a9a5e, 0x8e8f55],
     };
     for (let k = 0; k < p.count; k++) {
       const x = p.getX(k), z = p.getZ(k);
@@ -98,23 +106,23 @@ export class Terrain {
       p.setY(k, y);
       const s = this.surface(x, z);
       const noise = (Math.sin(x * 0.7) * Math.cos(z * 0.6) + Math.sin(x * 0.13 + z * 0.17)) * 0.03;
-      c.set(0x6db04a);
-      const dt = Math.hypot(x - this.def.town.x, z - this.def.town.z);
+      c.set(this.def.grass ?? 0x6db04a);
+      const dt = this.def.town ? Math.hypot(x - this.def.town.x, z - this.def.town.z) : 1e9;
       for (const f of this.def.fields) {
         if (x > f.minX && x < f.maxX && z > f.minZ && z < f.maxZ) {
           const stripe = Math.floor((f.kind === 'plough' ? z : x) / 3) % 2 === 0 ? 0 : 1;
           c.set(fieldCol[f.kind][stripe]);
         }
       }
-      if (dt < this.def.town.r * 0.75) c.lerp(new THREE.Color(0x9a9a86), 0.55);
+      if (this.def.town && dt < this.def.town.r * 0.75) c.lerp(new THREE.Color(0x9a9a86), 0.55);
       const sq = this.def.square;
-      if (x > sq.minX && x < sq.maxX && z > sq.minZ && z < sq.maxZ) c.set(0xb8ad94);
-      if (s === 2) {
+      if (sq && x > sq.minX && x < sq.maxX && z > sq.minZ && z < sq.maxZ) c.set(0xb8ad94);
+      if (s === 2 && this.def.streamZ) {
         const sd = Math.abs(z - this.def.streamZ(x));
         c.set(sd < 2 ? 0x5b8fb8 : 0x6a8a5a);
       }
       const edge = Math.max(Math.abs(x), Math.abs(z)) - (this.def.half - 70);
-      if (edge > 0) c.lerp(new THREE.Color(0x4f8a3c), Math.min(1, edge / 30));
+      if (edge > 0) c.lerp(new THREE.Color(this.def.grass ? 0x5f7a3c : 0x4f8a3c), Math.min(1, edge / 30));
       c.offsetHSL(0, 0, noise);
       colors[k * 3] = c.r;
       colors[k * 3 + 1] = c.g;

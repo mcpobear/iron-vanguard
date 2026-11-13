@@ -56,9 +56,11 @@ export function outcomeText(st: CommanderMissionStats): string {
 export function evaluateAwards(st: CommanderMissionStats, missionId: string, success: boolean): string[] {
   const out: string[] = [];
   if (st.killsWhileDamaged >= 2 && st.protectionScore >= 8) out.push('STAR_OF_VALOUR');
-  if (st.tankKills >= 3 || st.mediumKills >= 2) out.push('ARMOURED_SERVICE_CROSS');
+  if (st.tankKills >= 3 || st.mediumKills >= 2 || st.heavyKills >= 1) out.push('ARMOURED_SERVICE_CROSS');
   if (st.protectionScore >= 6) out.push('IRON_SHIELD');
+  if (st.heavyKills >= 1) out.push('GUNNERS_LAUREL');
   if (success && missionId === 'bellwick') out.push('BELLWICK_RIBBON');
+  if (success && missionId === 'kessler') out.push('KESSLER_RIBBON');
   if (success) out.push('DAWN_SPEAR_RIBBON');
   return out;
 }
@@ -69,7 +71,9 @@ function citationFor(medalId: string, c: Commander, st: CommanderMissionStats, m
     case 'STAR_OF_VALOUR':
       return `At ${missionName}, ${n} remained in action in a badly damaged tank, destroying ${st.killsWhileDamaged} enemy tanks while shielding allied troops at great personal risk.`;
     case 'ARMOURED_SERVICE_CROSS':
-      return `At ${missionName}, ${n} destroyed ${st.tankKills} enemy tanks (${st.mediumKills} medium) in a single engagement.`;
+      return `At ${missionName}, ${n} destroyed ${st.tankKills} enemy tanks (${st.mediumKills} medium, ${st.heavyKills} heavy) in a single engagement.`;
+    case 'GUNNERS_LAUREL':
+      return `At ${missionName}, ${n} knocked out ${st.heavyKills > 1 ? `${st.heavyKills} enemy heavy tanks` : 'an enemy heavy tank'} in open battle.`;
     case 'IRON_SHIELD':
       return `At ${missionName}, ${n} repeatedly protected allied soldiers and fellow crews (protection score ${st.protectionScore}).`;
     default:
@@ -128,6 +132,7 @@ export function commitResult(s: CampaignState, r: MissionResult): DebriefReport 
     c.tankKills += st.tankKills;
     c.lightTankKills += st.lightKills;
     c.mediumTankKills += st.mediumKills;
+    c.heavyTankKills += st.heavyKills;
     c.positionsDestroyed += st.positions;
     c.infantryKills += st.infantry;
     if (r.success) {
@@ -146,6 +151,7 @@ export function commitResult(s: CampaignState, r: MissionResult): DebriefReport 
     if (st.tankKills > 0 && !c.achievements.includes('First Blood')) c.achievements.push('First Blood');
     if (st.smokeEffective > 0 && !c.achievements.includes('Smoke Screen')) c.achievements.push('Smoke Screen');
     if (st.positions > 0 && !c.achievements.includes('Bunker Buster')) c.achievements.push('Bunker Buster');
+    if (st.heavyKills > 0 && !c.achievements.includes('Bastion Breaker')) c.achievements.push('Bastion Breaker');
     if (st.timeAsPlayer > 0 && st.commanderId !== r.commanders[0]?.commanderId && !c.achievements.includes('Took Command Under Fire')) c.achievements.push('Took Command Under Fire');
 
     const killed = st.crew === 'killed';

@@ -61,6 +61,8 @@ export class Tank {
   ability: AbilityId = 'NONE';
   behaviour: BehaviourProfile | null = null;
   isPlayer = false;
+  /** True for tanks of other Alderland platoons (not in the player's succession order). */
+  allied = false;
   label = '';
   active = true; // enemies stay dormant until their mission phase
   stress = 0;

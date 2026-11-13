@@ -1,26 +1,4 @@
-// Layout of Bellwick and its approaches. Coordinates in metres; +z is north.
-export type P = [number, number];
-
-export interface MapDef {
-  half: number;
-  roads: { pts: P[]; width: number; main?: boolean }[];
-  streamZ: (x: number) => number;
-  bridge: { x: number; z: number; len: number; width: number };
-  town: { x: number; z: number; r: number };
-  square: { minX: number; maxX: number; minZ: number; maxZ: number };
-  townPlots: { minX: number; maxX: number; minZ: number; maxZ: number };
-  church: { x: number; z: number };
-  farmhouses: { x: number; z: number; rot: number; barn?: boolean }[];
-  villageHouses: { x: number; z: number; rot: number }[];
-  orchards: { minX: number; maxX: number; minZ: number; maxZ: number; spacing: number }[];
-  woods: { x: number; z: number; r: number; n: number }[];
-  hedges: P[][];
-  walls: P[][];
-  rubble: P[];
-  barricades: { x: number; z: number; len: number; rot: number }[];
-  fields: { minX: number; maxX: number; minZ: number; maxZ: number; kind: 'wheat' | 'pasture' | 'plough' | 'meadow' }[];
-  noBuild: { x: number; z: number; r: number }[];
-}
+import { type MapDef, type P, mirrorDef, mirrorPoints } from './mapTypes';
 
 const RAW: MapDef = {
   half: 320,
@@ -139,39 +117,6 @@ const RAW_POINTS = {
   enemyRetreat: { x: 0, z: 310 },
 };
 
-/**
- * Three.js is right-handed: looking north (+z), screen-right is -x. The layout above was drawn
- * with +x as east, so mirror it once here; then east is on your right when facing north and the
- * minimap, compass calls and 3D view all agree.
- */
-function mirrorDef(d: MapDef): MapDef {
-  const mp = (p: P): P => [-p[0], p[1]];
-  const box = <T extends { minX: number; maxX: number }>(b: T): T => ({ ...b, minX: -b.maxX, maxX: -b.minX });
-  return {
-    ...d,
-    roads: d.roads.map((r) => ({ ...r, pts: r.pts.map(mp) })),
-    streamZ: (x) => d.streamZ(-x),
-    bridge: { ...d.bridge, x: -d.bridge.x },
-    town: { ...d.town, x: -d.town.x },
-    square: box(d.square),
-    townPlots: box(d.townPlots),
-    church: { x: -d.church.x, z: d.church.z },
-    farmhouses: d.farmhouses.map((f) => ({ ...f, x: -f.x, rot: -f.rot })),
-    villageHouses: d.villageHouses.map((f) => ({ ...f, x: -f.x, rot: -f.rot })),
-    orchards: d.orchards.map(box),
-    woods: d.woods.map((w) => ({ ...w, x: -w.x })),
-    hedges: d.hedges.map((l) => l.map(mp)),
-    walls: d.walls.map((l) => l.map(mp)),
-    rubble: d.rubble.map(mp),
-    barricades: d.barricades.map((b) => ({ ...b, x: -b.x, rot: -b.rot })),
-    fields: d.fields.map(box),
-    noBuild: d.noBuild.map((n) => ({ ...n, x: -n.x })),
-  };
-}
-
 export const BELLWICK: MapDef = mirrorDef(RAW);
 
-type Pt = { x: number; z: number; heading?: number; r?: number };
-export const POINTS = Object.fromEntries(
-  Object.entries(RAW_POINTS).map(([k, v]) => [k, { ...(v as Pt), x: -(v as Pt).x, ...('heading' in v ? { heading: -(v as Pt).heading! } : {}) }]),
-) as unknown as typeof RAW_POINTS;
+export const POINTS = mirrorPoints(RAW_POINTS);

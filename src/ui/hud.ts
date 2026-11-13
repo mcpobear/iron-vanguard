@@ -6,7 +6,6 @@ import { rankCanvas, portraitCanvas } from './art';
 import { ribbonsOf } from '../campaign/campaign';
 import { OUTCOME_TEXT } from '../progression/casualty';
 import type { AmmoType } from '../data/tanks';
-import { POINTS } from '../missions/bellwickMap';
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = ''): HTMLElementTagNameMap[K] => {
   const e = document.createElement(tag);
@@ -89,6 +88,7 @@ export class Hud {
   private aimBtn = el('button', 'btn aim', 'AIM');
   private ammoBtn = el('button', 'btn ammo');
   private ordersBtn = el('button', 'btn orders', 'ORDERS');
+  private artyBtn = el('button', 'btn arty', 'ARTY');
   private ammoMenu = el('div', 'ammo-menu');
   private minimap = el('canvas', 'minimap') as HTMLCanvasElement;
   private overlay = el('div', 'overlay');
@@ -106,6 +106,7 @@ export class Hud {
   private toastT = 0;
   private flashT = 0;
   private moveMode = false;
+  private artyMode = false;
   private platoonCollapsed = false;
   private lastPlayerId = -1;
 
@@ -138,12 +139,13 @@ export class Hud {
     const recentre = el('button', 'btn small recentre', '⟲');
     const pauseBtn = el('button', 'btn small pause', 'II');
     const mapBtn = el('button', 'btn small mapbtn', 'MAP');
-    this.controls.append(this.fireBtn, this.mgBtn, this.aimBtn, this.ammoBtn, this.ordersBtn, recentre, pauseBtn, mapBtn, this.ammoMenu);
+    this.controls.append(this.fireBtn, this.mgBtn, this.aimBtn, this.ammoBtn, this.ordersBtn, this.artyBtn, recentre, pauseBtn, mapBtn, this.ammoMenu);
     bindPress(this.fireBtn, () => g.firePlayer(), undefined, (dx, dy) => g.look(dx, dy));
     bindPress(this.mgBtn, () => (g.input.mgHeld = true), () => (g.input.mgHeld = false), (dx, dy) => g.look(dx, dy));
     bindPress(this.aimBtn, () => g.setAim(!g.aiming));
     bindPress(this.ammoBtn, () => this.ammoMenu.classList.toggle('open'));
     bindPress(this.ordersBtn, () => g.openOrders(!g.ordersOpen));
+    bindPress(this.artyBtn, () => g.openMap(true, false, true));
     bindPress(recentre, () => g.recenterCamera());
     bindPress(pauseBtn, () => g.togglePause(true));
     bindPress(mapBtn, () => g.openMap(!g.mapOpen));
@@ -157,7 +159,7 @@ export class Hud {
       });
       this.ammoMenu.appendChild(b);
     }
-    this.keyLegend.innerHTML = 'WASD drive · Mouse look · LMB fire · RMB/E aim · SPACE MG · 1/2/3 ammo · Q orders · F formation · M map · Esc pause';
+    this.keyLegend.innerHTML = 'WASD drive · Mouse look · LMB fire · RMB/E aim · SPACE MG · 1/2/3 ammo · Q orders · F formation · M map · R artillery · Esc pause';
     this.platoonPanel.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       this.platoonCollapsed = !this.platoonCollapsed;
@@ -170,13 +172,16 @@ export class Hud {
     this.mapPanel.append(mapClose, el('div', 'map-hint'));
     this.mapCanvas.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
-      if (!this.moveMode) return;
+      if (!this.moveMode && !this.artyMode) return;
       const rect = this.mapCanvas.getBoundingClientRect();
       const half = g.world.def.half;
       const x = half - ((e.clientX - rect.left) / rect.width) * 2 * half;
       const z = half - ((e.clientY - rect.top) / rect.height) * 2 * half;
-      g.platoon.issue('move', { point: new THREE.Vector3(x, 0, z) });
-      g.openMap(false);
+      if (this.artyMode) g.callArtillery(x, z);
+      else {
+        g.platoon.issue('move', { point: new THREE.Vector3(x, 0, z) });
+        g.openMap(false);
+      }
     });
     this.g.container.appendChild(r);
     this.minimap.width = this.minimap.height = 160;
@@ -237,10 +242,18 @@ export class Hud {
     }
   }
 
-  showMap(open: boolean, forMove = false) {
+  showMap(open: boolean, forMove = false, forArtillery = false) {
     this.moveMode = open && forMove;
+    this.artyMode = open && forArtillery;
     this.mapPanel.classList.toggle('open', open);
-    (this.mapPanel.querySelector('.map-hint') as HTMLElement).textContent = this.moveMode ? 'TAP A DESTINATION FOR THE PLATOON' : 'TACTICAL MAP';
+    this.mapPanel.classList.toggle('arty', this.artyMode);
+    const g = this.g;
+    const blocked = this.artyMode ? g.artillery.blockedReason() : null;
+    (this.mapPanel.querySelector('.map-hint') as HTMLElement).textContent = this.artyMode
+      ? blocked ?? `TAP A TARGET FOR HAMMER BATTERY — ${g.artillery.available} FIRE MISSION${g.artillery.available === 1 ? '' : 'S'} LEFT`
+      : this.moveMode
+        ? 'TAP A DESTINATION FOR THE PLATOON'
+        : 'TACTICAL MAP';
     if (open) {
       const s = Math.min(window.innerHeight * 0.82, window.innerWidth * 0.62);
       this.mapCanvas.width = this.mapCanvas.height = Math.round(s * Math.min(2, window.devicePixelRatio || 1));
@@ -402,6 +415,10 @@ export class Hud {
       this.drawMinimap();
       if (g.mapOpen) this.drawTactical();
     }
+    const art = g.artillery;
+    this.artyBtn.style.display = art.enabled ? '' : 'none';
+    this.artyBtn.classList.toggle('ready', art.ready);
+    this.artyBtn.innerHTML = art.cooldown > 0 ? `ARTY<small>${Math.ceil(art.cooldown)}s</small>` : `ARTY<small>${art.available}</small>`;
     // reload ring
     const frac = p.reload > 0 ? 1 - p.reload / p.def.gun.reload : 1;
     (this.fireBtn.querySelector('.ring') as HTMLElement).style.background = `conic-gradient(${frac >= 1 ? '#f5c542' : '#9aa38a'} ${frac * 360}deg, rgba(0,0,0,0.25) 0deg)`;
@@ -518,7 +535,7 @@ export class Hud {
     (this.sight.querySelector('.s-range') as HTMLElement).textContent = g.targetTank ? `RANGE ${rng} m · ${g.targetTank.def.name}` : rng && rng < 880 ? `RANGE ${rng} m` : 'RANGE —';
 
     // platoon panel
-    const allies = g.tanks.filter((t) => t.side === 'ally').sort((a, b) => a.slotIndex - b.slotIndex);
+    const allies = g.tanks.filter((t) => t.side === 'ally' && !t.allied).sort((a, b) => a.slotIndex - b.slotIndex);
     const orderOf = (t: Tank) => (t.isPlayer ? 'Player' : !t.alive ? '—' : ORDER_LABEL[g.platoon.effectiveOrder(g.platoon.ais.find((a) => a.tank === t)!)]);
     this.platoonPanel.innerHTML = `<div class="pp-title">VANGUARD 1 · ${FORMATION_LABEL[g.platoon.formation].toUpperCase()}<span>${this.platoonCollapsed ? '▸' : '▾'}</span></div>` +
       allies
@@ -542,18 +559,21 @@ export class Hud {
     const half = g.world.def.half;
     const k = size / (half * 2);
     const X = (wx: number) => (half - wx) * k, Z = (wz: number) => (half - wz) * k;
-    x.fillStyle = '#5f8a46';
+    x.fillStyle = g.world.def.grass ? '#' + g.world.def.grass.toString(16).padStart(6, '0') : '#5f8a46';
     x.fillRect(0, 0, size, size);
     for (const f of g.world.def.fields) {
-      x.fillStyle = { wheat: '#b9a64e', pasture: '#6fa84a', plough: '#7d6646', meadow: '#7db355' }[f.kind];
+      x.fillStyle = { wheat: '#b9a64e', pasture: '#6fa84a', plough: '#7d6646', meadow: '#7db355', scrub: '#8e8f55' }[f.kind] ?? '#6fa84a';
       x.fillRect(X(f.maxX), Z(f.maxZ), (f.maxX - f.minX) * k, (f.maxZ - f.minZ) * k);
     }
     // stream
-    x.strokeStyle = '#4f86b8';
-    x.lineWidth = Math.max(2, 4 * k);
-    x.beginPath();
-    for (let wx = -half; wx <= half; wx += 8) x.lineTo(X(wx), Z(g.world.def.streamZ(wx)));
-    x.stroke();
+    const streamZ = g.world.def.streamZ;
+    if (streamZ) {
+      x.strokeStyle = '#4f86b8';
+      x.lineWidth = Math.max(2, 4 * k);
+      x.beginPath();
+      for (let wx = -half; wx <= half; wx += 8) x.lineTo(X(wx), Z(streamZ(wx)));
+      x.stroke();
+    }
     // roads
     x.strokeStyle = '#d9c7a0';
     x.lineCap = 'round';
@@ -614,6 +634,16 @@ export class Hud {
       ctx.beginPath();
       ctx.arc(X(p.x), Z(p.z), Math.max(6 * scale, (m.radius ?? 0) * scale * 0.5), 0, Math.PI * 2);
       ctx.stroke();
+    }
+    for (const fm of g.artillery.missions) {
+      ctx.strokeStyle = fm.eta > 0 ? '#ffd23f' : '#ff5a3a';
+      ctx.setLineDash([5 * scale, 4 * scale]);
+      ctx.lineWidth = 2 * scale;
+      ctx.beginPath();
+      // radius in metres → pixels, works for both the minimap and the tactical map
+      ctx.arc(X(fm.x), Z(fm.z), Math.abs(X(fm.x + fm.radius) - X(fm.x)), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
     const mp = g.platoon.order === 'move' ? g.platoon.movePoint : null;
     if (mp) {
@@ -676,8 +706,6 @@ export class Hud {
     ctx.fillStyle = '#fff';
     ctx.font = `bold ${14 * s}px sans-serif`;
     const lbl = (t: string, x: number, z: number) => ctx.fillText(t, (half - x) * k - ctx.measureText(t).width / 2, (half - z) * k);
-    lbl('BELLWICK', 0, 205);
-    lbl('Hollow Wood', POINTS.strongpoint.x, 100);
-    lbl('Orchards', POINTS.orchardTroops.x, 22);
+    for (const m of g.mission.info.mapLabels ?? []) lbl(m.text, m.x, m.z);
   }
 }

@@ -17,7 +17,7 @@ export interface TankDef {
   id: string;
   name: string;
   nation: 'alderland' | 'varkovia';
-  cls: 'light' | 'medium';
+  cls: 'light' | 'medium' | 'heavy';
   hp: number;
   armour: { front: number; side: number; rear: number; turret: number };
   maxSpeed: number; // m/s forward on road
@@ -51,7 +51,8 @@ export const TANKS: Record<string, TankDef> = {
     accel: 2.6,
     turnRate: 0.75,
     turretTraverse: 0.9,
-    gunElevMin: -0.14,
+    // better gun depression than the Varkovians: the Sentinel can fight from a crest
+    gunElevMin: -0.19,
     gunElevMax: 0.33,
     gun: {
       calibre: 75,
@@ -102,6 +103,39 @@ export const TANKS: Record<string, TankDef> = {
     colour: 0x6f6e64,
     spotRange: 240,
     xpValue: 100,
+  },
+  'V-58': {
+    id: 'V-58',
+    name: 'V-58 Bastion',
+    nation: 'varkovia',
+    cls: 'heavy',
+    hp: 170,
+    // frontally near-immune to the Sentinel's 75 mm: it has to be flanked or shelled
+    armour: { front: 165, side: 78, rear: 50, turret: 150 },
+    maxSpeed: 6.2,
+    maxReverse: 2.6,
+    accel: 1.2,
+    turnRate: 0.38,
+    turretTraverse: 0.3,
+    gunElevMin: -0.1,
+    gunElevMax: 0.26,
+    gun: {
+      calibre: 100,
+      reload: 8.5,
+      pen: { AP: 150, HE: 50, SMOKE: 0 },
+      damage: { AP: 48, HE: 30, SMOKE: 0 },
+      velocity: { AP: 380, HE: 310, SMOKE: 240 },
+      splash: { AP: 0, HE: 7, SMOKE: 0 },
+      baseSpread: 0.009,
+    },
+    ammo: { AP: 40, HE: 24, SMOKE: 0 },
+    mgBelts: 8,
+    mgBeltSize: 150,
+    hull: { length: 7.4, width: 3.7, height: 1.9 },
+    radius: 3.9,
+    colour: 0x5e5a4a,
+    spotRange: 280,
+    xpValue: 400,
   },
   'V-41': {
     id: 'V-41',

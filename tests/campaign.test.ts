@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newCampaign, nextCommandIndex, successionOrder, isAvailable } from '../src/campaign/campaign';
+import { newCampaign, nextCommandIndex, successionOrder, isAvailable, SCHEMA_VERSION } from '../src/campaign/campaign';
 import { MissionTracker, XP } from '../src/progression/tracker';
 import { commitResult, previewResult, MISSION_COMPLETION_XP, isPromotionEligible } from '../src/progression/debrief';
 import { SaveSystem, memoryKV, migrate } from '../src/persistence/save';
@@ -218,15 +218,20 @@ describe('save-state integrity', () => {
     expect(final.rollOfHonour).toEqual(['cmdr-ward']);
   });
 
-  it('migrates a v1 save', () => {
+  it('migrates an old save forward through every schema step', () => {
     const s: any = newCampaign(3);
     s.schemaVersion = 1;
     delete s.pendingResult;
     delete s.replacementsIssued;
+    for (const c of Object.values(s.commanders) as any[]) delete c.heavyTankKills;
     const m = migrate(JSON.parse(JSON.stringify(s)))!;
-    expect(m.schemaVersion).toBe(2);
+    expect(m.schemaVersion).toBe(SCHEMA_VERSION);
     expect(m.pendingResult).toBeNull();
     expect(m.replacementsIssued).toEqual({ commanders: 0, tanks: 0 });
+    expect(m.commanders['cmdr-mercer'].heavyTankKills).toBe(0);
+    // and the four originals survive the upgrade intact
+    expect(Object.keys(m.commanders).length).toBe(4);
+    expect(m.slots.map((x) => x.callsign)).toEqual(['Vanguard 1-1', 'Vanguard 1-2', 'Vanguard 1-3', 'Vanguard 1-4']);
   });
 
   it('round-trips through storage', () => {

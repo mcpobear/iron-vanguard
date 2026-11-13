@@ -2,7 +2,7 @@ import { ORIGINAL_COMMANDERS, REPLACEMENT_FIRST, REPLACEMENT_LAST, REPLACEMENT_O
 import { pick, makeRng, type Rng } from '../core/rng';
 import type { CampaignState, Commander, PortraitSpec, TankRecord, PlatoonSlot } from './types';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 export const CALLSIGNS = ['Vanguard 1-1', 'Vanguard 1-2', 'Vanguard 1-3', 'Vanguard 1-4'];
 export const START_DATE = '1944-06-17';
 
@@ -16,6 +16,7 @@ function blankCommander(id: string, serviceNumber: string): Omit<Commander, 'fir
     tankKills: 0,
     lightTankKills: 0,
     mediumTankKills: 0,
+    heavyTankKills: 0,
     positionsDestroyed: 0,
     infantryKills: 0,
     achievements: [],

@@ -3,6 +3,7 @@ import type { CommanderMissionStats, CrewOutcome, MissionResult, VehicleOutcome 
 export const XP = {
   KILL_LIGHT: 100,
   KILL_MEDIUM: 150,
+  KILL_HEAVY: 320,
   DAMAGE_HIT: 15,
   POSITION: 60,
   INFANTRY: 6,
@@ -40,6 +41,7 @@ export class MissionTracker {
       tankKills: 0,
       lightKills: 0,
       mediumKills: 0,
+      heavyKills: 0,
       damagingHits: 0,
       positions: 0,
       infantry: 0,
@@ -73,15 +75,17 @@ export class MissionTracker {
     return this.stats.get(id);
   }
 
-  tankKilled(killerId: string | null, cls: 'light' | 'medium', opts: { killerDamaged?: boolean; protecting?: boolean; coordinated?: boolean; designatorId?: string | null } = {}) {
+  tankKilled(killerId: string | null, cls: 'light' | 'medium' | 'heavy', opts: { killerDamaged?: boolean; protecting?: boolean; coordinated?: boolean; designatorId?: string | null } = {}) {
     this.enemyTanksDestroyed++;
     const s = killerId ? this.stats.get(killerId) : undefined;
     if (!s) return;
     s.tankKills++;
     if (cls === 'light') s.lightKills++;
-    else s.mediumKills++;
+    else if (cls === 'medium') s.mediumKills++;
+    else s.heavyKills++;
     s.hits++;
-    this.give(killerId, cls === 'light' ? XP.KILL_LIGHT : XP.KILL_MEDIUM, cls === 'light' ? 'Light tanks destroyed' : 'Medium tanks destroyed');
+    const xp = cls === 'light' ? XP.KILL_LIGHT : cls === 'medium' ? XP.KILL_MEDIUM : XP.KILL_HEAVY;
+    this.give(killerId, xp, cls === 'light' ? 'Light tanks destroyed' : cls === 'medium' ? 'Medium tanks destroyed' : 'Heavy tanks destroyed');
     if (opts.killerDamaged) s.killsWhileDamaged++;
     if (opts.protecting) {
       s.protectionScore += 2;
