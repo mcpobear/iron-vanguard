@@ -22,7 +22,7 @@ export interface MapDef {
   noBuild: { x: number; z: number; r: number }[];
 }
 
-export const BELLWICK: MapDef = {
+const RAW: MapDef = {
   half: 320,
   roads: [
     { pts: [[0, -320], [0, -230], [2, -150], [0, -112], [0, -100], [3, -60], [6, 0], [4, 50], [0, 100], [0, 118]], width: 8, main: true },
@@ -35,7 +35,7 @@ export const BELLWICK: MapDef = {
     { pts: [[-28, 128], [-60, 126], [-120, 120]], width: 5 },
   ],
   streamZ: (x) => -110 + 6 * Math.sin(x * 0.025) + 3 * Math.sin(x * 0.07),
-  bridge: { x: 0, z: -110, len: 16, width: 9 },
+  bridge: { x: 0, z: -110, len: 18, width: 14 },
   town: { x: 0, z: 145, r: 95 },
   square: { minX: -28, maxX: 28, minZ: 118, maxZ: 162 },
   townPlots: { minX: -95, maxX: 95, minZ: 86, maxZ: 236 },
@@ -109,8 +109,8 @@ export const BELLWICK: MapDef = {
   ],
 };
 
-/** Gameplay anchor points for the mission script. */
-export const POINTS = {
+/** Gameplay anchor points (design coordinates; mirrored below). */
+const RAW_POINTS = {
   playerStart: { x: 0, z: -292, heading: 0 },
   crossroads: { x: 2, z: -150 },
   farmBoar: { x: 74, z: -96, heading: -2.25 },
@@ -128,7 +128,50 @@ export const POINTS = {
   reinforcementStart: { x: 0, z: 300, heading: Math.PI },
   reinforcementGoal: { x: 4, z: 184 },
   squareCentre: { x: 0, z: 140 },
+  townMg: { x: -17, z: 171, heading: -2.58 },
+  townMgFallback: { x: -26, z: 150 },
+  oxPatrolA: { x: 24, z: 132 },
+  oxPatrolB: { x: -2, z: 170 },
+  boarPatrolA: { x: -56, z: 30 },
+  boarPatrolB: { x: -84, z: 54 },
   westStreetStaging: { x: -44, z: 128 },
   flagPole: { x: 0, z: 140 },
   enemyRetreat: { x: 0, z: 310 },
 };
+
+/**
+ * Three.js is right-handed: looking north (+z), screen-right is -x. The layout above was drawn
+ * with +x as east, so mirror it once here; then east is on your right when facing north and the
+ * minimap, compass calls and 3D view all agree.
+ */
+function mirrorDef(d: MapDef): MapDef {
+  const mp = (p: P): P => [-p[0], p[1]];
+  const box = <T extends { minX: number; maxX: number }>(b: T): T => ({ ...b, minX: -b.maxX, maxX: -b.minX });
+  return {
+    ...d,
+    roads: d.roads.map((r) => ({ ...r, pts: r.pts.map(mp) })),
+    streamZ: (x) => d.streamZ(-x),
+    bridge: { ...d.bridge, x: -d.bridge.x },
+    town: { ...d.town, x: -d.town.x },
+    square: box(d.square),
+    townPlots: box(d.townPlots),
+    church: { x: -d.church.x, z: d.church.z },
+    farmhouses: d.farmhouses.map((f) => ({ ...f, x: -f.x, rot: -f.rot })),
+    villageHouses: d.villageHouses.map((f) => ({ ...f, x: -f.x, rot: -f.rot })),
+    orchards: d.orchards.map(box),
+    woods: d.woods.map((w) => ({ ...w, x: -w.x })),
+    hedges: d.hedges.map((l) => l.map(mp)),
+    walls: d.walls.map((l) => l.map(mp)),
+    rubble: d.rubble.map(mp),
+    barricades: d.barricades.map((b) => ({ ...b, x: -b.x, rot: -b.rot })),
+    fields: d.fields.map(box),
+    noBuild: d.noBuild.map((n) => ({ ...n, x: -n.x })),
+  };
+}
+
+export const BELLWICK: MapDef = mirrorDef(RAW);
+
+type Pt = { x: number; z: number; heading?: number; r?: number };
+export const POINTS = Object.fromEntries(
+  Object.entries(RAW_POINTS).map(([k, v]) => [k, { ...(v as Pt), x: -(v as Pt).x, ...('heading' in v ? { heading: -(v as Pt).heading! } : {}) }]),
+) as unknown as typeof RAW_POINTS;

@@ -225,10 +225,11 @@ export class World {
     gb.box(b.x, y - 0.25, b.z, b.width, 0.6, b.len, 0x8f8a7e);
     for (const sx of [-1, 1]) {
       gb.box(b.x + sx * (b.width / 2 + 0.3), y + 0.55, b.z, 0.6, 1.0, b.len, 0x7d786c);
-      const inner = b.x + sx * (b.width / 2), outer = inner + sx * 0.7;
-      this.addSolid(Math.min(inner, outer), Math.max(inner, outer), b.z - b.len / 2, b.z + b.len / 2, y - 1, y + 1.1, false, 'rail');
+      // low railings are visual only: a tank must never get wedged on the bridge
     }
     gb.box(b.x, y - 1.6, b.z, b.width - 1, 2.2, 3, 0x7d786c);
+    gb.box(b.x, y - 1.1, b.z - b.len / 2 - 1, b.width, 1.4, 2.4, 0x8f8a7e, 0, 0, 0.35);
+    gb.box(b.x, y - 1.1, b.z + b.len / 2 + 1, b.width, 1.4, 2.4, 0x8f8a7e, 0, 0, -0.35);
   }
 
   private buildMisc(gb: GeoBuilder) {

@@ -11,6 +11,7 @@ export interface Settings {
   aimAssist: boolean;
   slowOnOrders: boolean;
   volume: number;
+  musicVolume: number;
   tutorialHints: boolean;
   controls: 'auto' | 'touch' | 'desktop';
 }
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   aimAssist: true,
   slowOnOrders: true,
   volume: 0.8,
+  musicVolume: 0.55,
   tutorialHints: true,
   controls: 'auto',
 };

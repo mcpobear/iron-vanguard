@@ -133,7 +133,7 @@ export class Game {
     // Hollow Wood strongpoint (scenery for the smoke phase)
     const sp = new THREE.Mesh(strongpointGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
     sp.position.set(POINTS.strongpoint.x, this.world.h(POINTS.strongpoint.x, POINTS.strongpoint.z), POINTS.strongpoint.z);
-    sp.rotation.y = -Math.PI / 2 - 0.2;
+    sp.rotation.y = Math.PI / 2 + 0.2;
     this.scene.add(sp);
 
     this.infantry = new Infantry(this);
@@ -360,6 +360,7 @@ export class Game {
 
   showVictory() {
     this.finished = true;
+    this.audio.playMusic(1);
     this.hud.showVictory();
   }
 
@@ -428,6 +429,11 @@ export class Game {
     }
   }
 
+  /** Look input forwarded from a dragged HUD button (fire / MG). */
+  look(dx: number, dy: number) {
+    this.input.addLook(dx, dy);
+  }
+
   recenterCamera() {
     const p = this.playerTank;
     if (p) {
@@ -472,7 +478,8 @@ export class Game {
       return;
     }
     p.throttle = inp.move.y;
-    p.steer = inp.move.x;
+    // physics yaw is +x-ward, which is screen-left when looking along +z: negate so stick-right turns right
+    p.steer = -inp.move.x;
     const look = inp.takeLook();
     const s = this.settings;
     const inv = s.invertY ? -1 : 1;

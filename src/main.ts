@@ -17,10 +17,16 @@ class App implements S.ScreenHost {
   game: Game | null = null;
   mission = BELLWICK_INFO;
   private screenEl: HTMLElement | null = null;
+  private currentScreen = 'menu';
 
   constructor() {
     this.audio.setVolume(this.settings.volume);
-    const unlock = () => this.audio.unlock();
+    this.audio.setMusicVolume(this.settings.musicVolume);
+    // Browsers only allow sound after a gesture, so the score starts on the first tap/key.
+    const unlock = () => {
+      this.audio.unlock();
+      if (!this.game) this.audio.playMusic(this.musicIntensity());
+    };
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);
     // block page gestures (pinch zoom, double-tap zoom, pull-to-refresh) during play
@@ -34,7 +40,13 @@ class App implements S.ScreenHost {
     document.getElementById('boot')?.remove();
   }
 
+  /** Menus march; the debrief and memorial screens underscore quietly. */
+  private musicIntensity(screen = this.currentScreen) {
+    return screen === 'debrief' || screen === 'honour' || screen === 'profile' ? 0.6 : 1;
+  }
+
   show(name: string, arg?: any) {
+    this.currentScreen = name;
     this.screenEl?.remove();
     let el: HTMLElement;
     switch (name) {
@@ -68,6 +80,7 @@ class App implements S.ScreenHost {
     this.screenEl = el;
     this.root.appendChild(el);
     el.scrollTop = 0;
+    if (this.audio.ctx) this.audio.playMusic(this.musicIntensity(name));
   }
 
   newCampaign() {
@@ -103,6 +116,7 @@ class App implements S.ScreenHost {
     this.screenEl = null;
     this.goFullscreen();
     this.audio.unlock();
+    this.audio.stopMusic(1.6);
     const loading = S.h('<div class="loading"><div>DEPLOYING TO BELLWICK…</div></div>');
     this.root.appendChild(loading);
     requestAnimationFrame(() =>
@@ -152,6 +166,8 @@ class App implements S.ScreenHost {
     this.settings = s;
     this.save.saveSettings(s);
     this.audio.setVolume(s.volume);
+    this.audio.setMusicVolume(s.musicVolume);
+    if (!this.game) this.audio.playMusic(this.musicIntensity());
     document.body.classList.toggle('touch', usesTouch(s));
   }
 

@@ -87,7 +87,8 @@ function aimError(t: Tank, p: THREE.Vector3): number {
 }
 
 export const compass = (dx: number, dz: number) => {
-  const a = (Math.atan2(dx, dz) * 180) / Math.PI;
+  // east is -x (see bellwickMap mirror note)
+  const a = (Math.atan2(-dx, dz) * 180) / Math.PI;
   const dirs = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
   return dirs[Math.round(((a + 360) % 360) / 45) % 8];
 };
@@ -309,6 +310,8 @@ export interface EnemyOpts {
   retreatTo: { x: number; z: number };
   aggression: number;
   holdFireUntil?: number;
+  /** Optional idle patrol loop — the tank shuffles between these while unalerted. */
+  patrol?: { x: number; z: number }[];
 }
 
 export class EnemyAI {
@@ -323,6 +326,15 @@ export class EnemyAI {
   stopT = 0;
   lastHp: number;
   firstShotDelay = 2.2;
+  /** Last place an enemy was seen — the tank will go and look there. */
+  lastKnown: THREE.Vector3 | null = null;
+  huntT = 0;
+  patrolIdx = 0;
+  patrolWait = 0;
+  shootAndScoot = 0;
+  mgCd = 0;
+  turretScanT = 0;
+  scanDir = 1;
 
   constructor(public tank: Tank, public o: EnemyOpts) {
     this.lastHp = tank.hp;
@@ -391,6 +403,29 @@ export class EnemyAI {
       else if (!this.target && this.mode === 'engage') this.mode = 'guard';
     }
 
+    // coaxial MG against exposed infantry when no tank target is pressing
+    this.mgCd -= dt;
+    if (!this.target && this.mgCd <= 0 && t.mgAmmo > 0) {
+      let inf: { x: number; y: number; z: number } | null = null;
+      let bd = 150 * 150;
+      for (const s2 of g.infantry.soldiers) {
+        if (s2.side !== 'ally' || !s2.active) continue;
+        const d = (s2.pos.x - t.pos.x) ** 2 + (s2.pos.z - t.pos.z) ** 2;
+        if (d < bd && g.world.col.lineOfSight(t.eye().x, t.eye().y, t.eye().z, s2.pos.x, s2.pos.y + 1, s2.pos.z, 0.5)) {
+          bd = d;
+          inf = { x: s2.pos.x, y: s2.pos.y + 1, z: s2.pos.z };
+        }
+      }
+      if (inf) {
+        t.aimPoint = new THREE.Vector3(inf.x, inf.y, inf.z);
+        if (aimError(t, t.aimPoint) < 0.06) {
+          g.weapons.fireMG(t);
+          g.infantry.suppressArea(inf.x, inf.z, 10, 'ally', 1.3);
+          if (Math.random() < 0.08) this.mgCd = 1.5 + Math.random() * 2;
+        }
+      }
+    }
+
     // shooting
     if (this.target && this.target.alive) {
       const lp = leadPoint(t, this.target);
@@ -403,12 +438,26 @@ export class EnemyAI {
       if (!hold && this.firstShotDelay <= 0 && t.reload <= 0 && aimError(t, lp) < 0.03 && lineOfFireClear(t, lp, g)) {
         const moving = Math.abs(t.speed) > 1;
         if (moving && this.mode !== 'retreat') this.stopT = 1.4;
-        else g.weapons.fireMain(t, diff.enemySpread * (moving ? 2.4 : 1) * (1 + t.stress * 0.6));
+        else {
+          g.weapons.fireMain(t, diff.enemySpread * (moving ? 2.4 : 1) * (1 + t.stress * 0.6));
+          // after firing, a cautious crew shifts position rather than trading shots from one spot
+          if (this.mode !== 'retreat' && Math.random() < (t.def.cls === 'light' ? 0.55 : 0.3)) this.shootAndScoot = 2.5 + Math.random() * 2;
+        }
       }
-    } else {
-      const gh = this.o.guard.heading;
-      t.aimPoint = t.centre().add(new THREE.Vector3(Math.sin(gh) * 60, 0.5, Math.cos(gh) * 60));
+      this.lastKnown = this.target.pos.clone();
+      this.huntT = 14;
+    } else if (!t.aimPoint || !this.mgCd || this.mgCd <= 0) {
+      // nothing in sight: sweep the turret across the approach instead of staring ahead
+      this.turretScanT -= dt;
+      if (this.turretScanT <= 0) {
+        this.turretScanT = 2.5 + Math.random() * 2;
+        this.scanDir *= -1;
+      }
+      const gh = this.o.guard.heading + this.scanDir * 0.5 * Math.sin(g.time * 0.35);
+      const look = this.lastKnown && this.huntT > 0 ? this.lastKnown.clone().setY(this.lastKnown.y + 1) : t.centre().add(new THREE.Vector3(Math.sin(gh) * 60, 0.5, Math.cos(gh) * 60));
+      t.aimPoint = look;
     }
+    if (this.huntT > 0) this.huntT -= dt;
 
     // movement
     if (this.stopT > 0) {
@@ -429,6 +478,32 @@ export class EnemyAI {
       case 'guard':
       case 'engage': {
         const gp = this.o.guard;
+        if (this.shootAndScoot > 0) {
+          // sidestep a few metres so the next incoming round misses
+          this.shootAndScoot -= dt;
+          const side = new THREE.Vector3(Math.cos(t.heading), 0, -Math.sin(t.heading)).multiplyScalar(this.scanDir);
+          const to = t.pos.clone().add(side.multiplyScalar(10));
+          driveTo(t, to.x, to.z, g, this.ds, dt, 0.6, 3);
+          break;
+        }
+        if (!this.target && this.huntT > 0 && this.lastKnown) {
+          // push toward where the shot came from instead of sitting still
+          const want = this.lastKnown.clone().lerp(t.pos, 0.45);
+          if (driveTo(t, want.x, want.z, g, this.ds, dt, 0.55, 8)) this.huntT = 0;
+          break;
+        }
+        if (!this.target && this.o.patrol && this.o.patrol.length > 1) {
+          this.patrolWait -= dt;
+          if (this.patrolWait <= 0) {
+            const p = this.o.patrol[this.patrolIdx % this.o.patrol.length];
+            if (driveTo(t, p.x, p.z, g, this.ds, dt, 0.45, 6)) {
+              this.patrolIdx++;
+              this.patrolWait = 3 + Math.random() * 4;
+              this.o.guard = { x: t.pos.x, z: t.pos.z, heading: this.o.guard.heading };
+            }
+            break;
+          }
+        }
         if (Math.hypot(gp.x - t.pos.x, gp.z - t.pos.z) > 6) driveTo(t, gp.x, gp.z, g, this.ds, dt, 0.6, 4);
         else {
           t.throttle = 0;

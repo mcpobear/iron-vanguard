@@ -246,6 +246,13 @@ export class Input {
     if (k === ' ') this.mgHeld = false;
   };
 
+  /** Feed look movement from a HUD button that is being dragged. */
+  addLook(dx: number, dy: number) {
+    if (!this.enabled) return;
+    this.lookDX += dx;
+    this.lookDY += dy;
+  }
+
   press(action: string) {
     if (this.enabled) this.actions.add(action);
   }

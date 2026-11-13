@@ -397,7 +397,7 @@ export function settingsScreen(host: ScreenHost): HTMLElement {
       ${row('Slow time while giving orders', chk('slowOnOrders'))}
       ${row('Training hints', chk('tutorialHints'))}
     </section>
-    <section><h3>Audio</h3>${row('Volume', rng('volume', 0, 1, 0.05))}</section>
+    <section><h3>Audio</h3>${row('Effects volume', rng('volume', 0, 1, 0.05))}${row('Music volume', rng('musicVolume', 0, 1, 0.05))}</section>
     <section><h3>Save management</h3>
       <div class="muted">Campaign saves are stored in this browser. Export a backup to move it to another device.</div>
       <div class="btn-row"><button class="btn" data-a="export">EXPORT SAVE</button><button class="btn" data-a="import">IMPORT SAVE</button><button class="btn danger" data-a="wipe">DELETE CAMPAIGN</button></div>

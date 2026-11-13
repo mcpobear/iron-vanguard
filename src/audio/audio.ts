@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Music } from './music';
 
 /** Fully synthesised WebAudio sound — no audio files required. */
 export class Audio {
@@ -15,7 +16,9 @@ export class Audio {
   private recent = 0;
   private recentT = 0;
   volume = 0.8;
+  musicVolume = 0.55;
   muted = false;
+  music = new Music();
 
   unlock() {
     if (this.ctx) {
@@ -32,6 +35,8 @@ export class Audio {
     this.master = ctx.createGain();
     this.master.gain.value = this.volume;
     this.master.connect(comp).connect(ctx.destination);
+    this.music.attach(ctx, comp);
+    this.music.setVolume(this.musicVolume);
     const len = ctx.sampleRate * 2;
     this.noise = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = this.noise.getChannelData(0);
@@ -83,6 +88,22 @@ export class Audio {
   setVolume(v: number) {
     this.volume = v;
     if (this.master) this.master.gain.value = this.muted ? 0 : v;
+  }
+
+  setMusicVolume(v: number) {
+    this.musicVolume = v;
+    this.music.setVolume(v);
+  }
+
+  /** Score for the menus/briefing (intensity 1) or a quieter underscore (0.6). */
+  playMusic(intensity = 1) {
+    this.unlock();
+    if (this.musicVolume <= 0) return;
+    this.music.play(intensity);
+  }
+
+  stopMusic(fade = 1.2) {
+    this.music.stop(fade);
   }
 
   setListener(p: THREE.Vector3, yaw: number) {

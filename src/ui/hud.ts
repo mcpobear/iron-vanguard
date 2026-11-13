@@ -5,6 +5,7 @@ import { ORDER_LABEL, FORMATION_LABEL, type Order, type Formation } from '../pla
 import { rankCanvas, portraitCanvas } from './art';
 import { OUTCOME_TEXT } from '../progression/casualty';
 import type { AmmoType } from '../data/tanks';
+import { POINTS } from '../missions/bellwickMap';
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = ''): HTMLElementTagNameMap[K] => {
   const e = document.createElement(tag);
@@ -13,14 +14,20 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = ''):
   return e;
 };
 
-/** Press-and-hold / tap binding that works with multi-touch and releases safely. */
-function bindPress(b: HTMLElement, down: () => void, up?: () => void) {
+/**
+ * Press-and-hold / tap binding that works with multi-touch and releases safely.
+ * With `drag`, movement of the holding finger is forwarded (so you can keep firing while
+ * panning the view) and the press still ends only when that finger lifts.
+ */
+function bindPress(b: HTMLElement, down: () => void, up?: () => void, drag?: (dx: number, dy: number) => void) {
   let id: number | null = null;
+  let last = { x: 0, y: 0 };
   b.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (id !== null) return;
     id = e.pointerId;
+    last = { x: e.clientX, y: e.clientY };
     try {
       b.setPointerCapture(e.pointerId);
     } catch {
@@ -29,6 +36,14 @@ function bindPress(b: HTMLElement, down: () => void, up?: () => void) {
     b.classList.add('pressed');
     down();
   });
+  if (drag)
+    b.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== id) return;
+      e.preventDefault();
+      e.stopPropagation();
+      drag(e.clientX - last.x, e.clientY - last.y);
+      last = { x: e.clientX, y: e.clientY };
+    });
   const release = (e: PointerEvent) => {
     if (e.pointerId !== id) return;
     id = null;
@@ -123,8 +138,8 @@ export class Hud {
     const pauseBtn = el('button', 'btn small pause', 'II');
     const mapBtn = el('button', 'btn small mapbtn', 'MAP');
     this.controls.append(this.fireBtn, this.mgBtn, this.aimBtn, this.ammoBtn, this.ordersBtn, recentre, pauseBtn, mapBtn, this.ammoMenu);
-    bindPress(this.fireBtn, () => g.firePlayer());
-    bindPress(this.mgBtn, () => (g.input.mgHeld = true), () => (g.input.mgHeld = false));
+    bindPress(this.fireBtn, () => g.firePlayer(), undefined, (dx, dy) => g.look(dx, dy));
+    bindPress(this.mgBtn, () => (g.input.mgHeld = true), () => (g.input.mgHeld = false), (dx, dy) => g.look(dx, dy));
     bindPress(this.aimBtn, () => g.setAim(!g.aiming));
     bindPress(this.ammoBtn, () => this.ammoMenu.classList.toggle('open'));
     bindPress(this.ordersBtn, () => g.openOrders(!g.ordersOpen));
@@ -157,7 +172,7 @@ export class Hud {
       if (!this.moveMode) return;
       const rect = this.mapCanvas.getBoundingClientRect();
       const half = g.world.def.half;
-      const x = ((e.clientX - rect.left) / rect.width) * 2 * half - half;
+      const x = half - ((e.clientX - rect.left) / rect.width) * 2 * half;
       const z = half - ((e.clientY - rect.top) / rect.height) * 2 * half;
       g.platoon.issue('move', { point: new THREE.Vector3(x, 0, z) });
       g.openMap(false);
@@ -525,12 +540,12 @@ export class Hud {
     const x = c.getContext('2d')!;
     const half = g.world.def.half;
     const k = size / (half * 2);
-    const X = (wx: number) => (wx + half) * k, Z = (wz: number) => (half - wz) * k;
+    const X = (wx: number) => (half - wx) * k, Z = (wz: number) => (half - wz) * k;
     x.fillStyle = '#5f8a46';
     x.fillRect(0, 0, size, size);
     for (const f of g.world.def.fields) {
       x.fillStyle = { wheat: '#b9a64e', pasture: '#6fa84a', plough: '#7d6646', meadow: '#7db355' }[f.kind];
-      x.fillRect(X(f.minX), Z(f.maxZ), (f.maxX - f.minX) * k, (f.maxZ - f.minZ) * k);
+      x.fillRect(X(f.maxX), Z(f.maxZ), (f.maxX - f.minX) * k, (f.maxZ - f.minZ) * k);
     }
     // stream
     x.strokeStyle = '#4f86b8';
@@ -549,7 +564,7 @@ export class Hud {
     }
     for (const b of g.world.col.boxes) {
       x.fillStyle = b.kind === 'hedge' ? '#2f5e28' : b.kind === 'wall' || b.kind === 'rubble' || b.kind === 'barricade' ? '#8a877c' : b.kind === 'church' ? '#e8e2d0' : '#c8b8a0';
-      x.fillRect(X(b.minX), Z(b.maxZ), Math.max(1, (b.maxX - b.minX) * k), Math.max(1, (b.maxZ - b.minZ) * k));
+      x.fillRect(X(b.maxX), Z(b.maxZ), Math.max(1, (b.maxX - b.minX) * k), Math.max(1, (b.maxZ - b.minZ) * k));
     }
     x.fillStyle = 'rgba(40,70,30,0.55)';
     for (const w of g.world.def.woods) {
@@ -580,7 +595,7 @@ export class Hud {
       const x = X(t.pos.x), y = Z(t.pos.z);
       ctx.save();
       ctx.translate(x, y);
-      ctx.rotate(t.heading);
+      ctx.rotate(-t.heading);
       ctx.fillStyle = !t.alive ? '#555' : t.side === 'ally' ? (t.isPlayer ? '#ffe066' : '#5fb0ff') : '#ff4a3a';
       ctx.beginPath();
       ctx.moveTo(0, -6 * scale);
@@ -625,15 +640,16 @@ export class Hud {
     ctx.beginPath();
     ctx.arc(c.width / 2, c.height / 2, c.width / 2 - 2, 0, Math.PI * 2);
     ctx.clip();
-    ctx.drawImage(sm, (p.pos.x - view + half) * smk, (half - p.pos.z - view) * smk, view * 2 * smk, view * 2 * smk, 0, 0, c.width, c.height);
-    const X = (x: number) => (x - p.pos.x + view) * k, Z = (z: number) => (p.pos.z - z + view) * k;
+    ctx.drawImage(sm, (half - p.pos.x - view) * smk, (half - p.pos.z - view) * smk, view * 2 * smk, view * 2 * smk, 0, 0, c.width, c.height);
+    const X = (x: number) => (p.pos.x - x + view) * k, Z = (z: number) => (p.pos.z - z + view) * k;
     this.drawUnits(ctx, X, Z, 1);
     // camera view cone
     const yaw = g.aiming ? g.aimYaw : g.camYaw;
     ctx.fillStyle = 'rgba(255,255,255,0.15)';
     ctx.beginPath();
     ctx.moveTo(c.width / 2, c.height / 2);
-    ctx.arc(c.width / 2, c.height / 2, 60, -Math.PI / 2 + yaw - 0.5, -Math.PI / 2 + yaw + 0.5);
+    const va = Math.atan2(-Math.cos(yaw), -Math.sin(yaw));
+    ctx.arc(c.width / 2, c.height / 2, 60, va - 0.5, va + 0.5);
     ctx.fill();
     ctx.restore();
     ctx.strokeStyle = 'rgba(255,255,255,0.7)';
@@ -655,11 +671,12 @@ export class Hud {
     const half = g.world.def.half;
     const k = c.width / (half * 2);
     const s = c.width / 600;
-    this.drawUnits(ctx, (x) => (x + half) * k, (z) => (half - z) * k, s);
+    this.drawUnits(ctx, (x) => (half - x) * k, (z) => (half - z) * k, s);
     ctx.fillStyle = '#fff';
     ctx.font = `bold ${14 * s}px sans-serif`;
-    ctx.fillText('BELLWICK', ((0 + half) * k) - 34 * s, (half - 205) * k);
-    ctx.fillText('Hollow Wood', (30 + half) * k - 30 * s, (half - 100) * k);
-    ctx.fillText('Orchards', (-150 + half) * k, (half + 2) * k);
+    const lbl = (t: string, x: number, z: number) => ctx.fillText(t, (half - x) * k - ctx.measureText(t).width / 2, (half - z) * k);
+    lbl('BELLWICK', 0, 205);
+    lbl('Hollow Wood', POINTS.strongpoint.x, 100);
+    lbl('Orchards', POINTS.orchardTroops.x, 22);
   }
 }
