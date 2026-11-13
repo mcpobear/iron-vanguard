@@ -1,0 +1,134 @@
+// Layout of Bellwick and its approaches. Coordinates in metres; +z is north.
+export type P = [number, number];
+
+export interface MapDef {
+  half: number;
+  roads: { pts: P[]; width: number; main?: boolean }[];
+  streamZ: (x: number) => number;
+  bridge: { x: number; z: number; len: number; width: number };
+  town: { x: number; z: number; r: number };
+  square: { minX: number; maxX: number; minZ: number; maxZ: number };
+  townPlots: { minX: number; maxX: number; minZ: number; maxZ: number };
+  church: { x: number; z: number };
+  farmhouses: { x: number; z: number; rot: number; barn?: boolean }[];
+  villageHouses: { x: number; z: number; rot: number }[];
+  orchards: { minX: number; maxX: number; minZ: number; maxZ: number; spacing: number }[];
+  woods: { x: number; z: number; r: number; n: number }[];
+  hedges: P[][];
+  walls: P[][];
+  rubble: P[];
+  barricades: { x: number; z: number; len: number; rot: number }[];
+  fields: { minX: number; maxX: number; minZ: number; maxZ: number; kind: 'wheat' | 'pasture' | 'plough' | 'meadow' }[];
+  noBuild: { x: number; z: number; r: number }[];
+}
+
+export const BELLWICK: MapDef = {
+  half: 320,
+  roads: [
+    { pts: [[0, -320], [0, -230], [2, -150], [0, -112], [0, -100], [3, -60], [6, 0], [4, 50], [0, 100], [0, 118]], width: 8, main: true },
+    { pts: [[-320, -152], [-150, -150], [2, -150], [150, -146], [320, -150]], width: 7 },
+    { pts: [[2, -150], [55, -128], [78, -100], [86, -86]], width: 5 },
+    { pts: [[3, -60], [-60, -55], [-95, -45], [-125, -28]], width: 6 },
+    { pts: [[-125, -28], [-118, 0], [-110, 40], [-84, 96], [-56, 120], [-28, 138]], width: 6 },
+    { pts: [[0, 162], [0, 200], [-4, 260], [0, 320]], width: 7, main: true },
+    { pts: [[28, 140], [70, 146], [120, 150], [200, 140]], width: 6 },
+    { pts: [[-28, 128], [-60, 126], [-120, 120]], width: 5 },
+  ],
+  streamZ: (x) => -110 + 6 * Math.sin(x * 0.025) + 3 * Math.sin(x * 0.07),
+  bridge: { x: 0, z: -110, len: 16, width: 9 },
+  town: { x: 0, z: 145, r: 95 },
+  square: { minX: -28, maxX: 28, minZ: 118, maxZ: 162 },
+  townPlots: { minX: -95, maxX: 95, minZ: 86, maxZ: 236 },
+  church: { x: 22, z: 182 },
+  farmhouses: [
+    { x: 92, z: -76, rot: 0.2, barn: true },
+    { x: -160, z: -168, rot: -0.3, barn: true },
+    { x: 150, z: -20, rot: 1.2 },
+    { x: -200, z: 60, rot: 0.6, barn: true },
+  ],
+  villageHouses: [
+    { x: 20, z: 60, rot: 0.1 },
+    { x: -18, z: 72, rot: -0.1 },
+    { x: 22, z: 82, rot: 0 },
+    { x: -14, z: -40, rot: 0.3 },
+  ],
+  orchards: [
+    { minX: -170, maxX: -98, minZ: -26, maxZ: 14, spacing: 9 },
+    { minX: -175, maxX: -132, minZ: -66, maxZ: -34, spacing: 9 },
+    { minX: 110, maxX: 160, minZ: -120, maxZ: -80, spacing: 10 },
+  ],
+  woods: [
+    { x: 34, z: 74, r: 22, n: 34 },
+    { x: 200, z: 70, r: 60, n: 50 },
+    { x: -230, z: -40, r: 50, n: 40 },
+    { x: 150, z: 230, r: 50, n: 34 },
+    { x: -170, z: 220, r: 55, n: 40 },
+  ],
+  hedges: [
+    [[-260, -200], [-12, -200]],
+    [[12, -200], [240, -200]],
+    [[-60, -270], [-60, -205]],
+    [[60, -270], [60, -205]],
+    [[40, -58], [140, -58]],
+    [[14, -30], [120, -30]],
+    [[-180, -72], [-100, -72]],
+    [[-40, -120], [-40, -70]],
+    [[-180, 30], [-130, 30]],
+    [[-20, 10], [-60, 10]],
+    [[130, -140], [130, -60]],
+    [[-250, -100], [-150, -100]],
+  ],
+  walls: [
+    [[-9, 40], [-9, 90]],
+    [[10, 30], [10, 54]],
+    [[60, -260], [160, -260]],
+    [[-100, -140], [-30, -140]],
+    [[-140, 60], [-118, 60]],
+  ],
+  rubble: [[-6, 104], [8, 96], [-34, 118], [36, 130], [-18, 170], [44, 158], [-62, 112]],
+  barricades: [
+    { x: 14, z: 150, len: 14, rot: 0 },
+    { x: -22, z: 156, len: 10, rot: 0.4 },
+    { x: -96, z: 22, len: 7, rot: 0.2 },
+  ],
+  fields: [
+    { minX: -260, maxX: -64, minZ: -270, maxZ: -204, kind: 'wheat' },
+    { minX: 64, maxX: 240, minZ: -270, maxZ: -204, kind: 'plough' },
+    { minX: -36, maxX: -4, minZ: -196, maxZ: -160, kind: 'pasture' },
+    { minX: 14, maxX: 126, minZ: -196, maxZ: -152, kind: 'wheat' },
+    { minX: -150, maxX: -44, minZ: -196, maxZ: -156, kind: 'plough' },
+    { minX: 14, maxX: 128, minZ: -54, maxZ: -34, kind: 'pasture' },
+    { minX: -36, maxX: -2, minZ: -100, maxZ: -64, kind: 'wheat' },
+    { minX: -90, maxX: -14, minZ: 14, maxZ: 92, kind: 'meadow' },
+    { minX: 60, maxX: 140, minZ: 0, maxZ: 70, kind: 'wheat' },
+    { minX: -250, maxX: -140, minZ: -96, maxZ: -76, kind: 'plough' },
+  ],
+  noBuild: [
+    { x: 0, z: 140, r: 0 },
+    { x: 34, z: 74, r: 26 },
+  ],
+};
+
+/** Gameplay anchor points for the mission script. */
+export const POINTS = {
+  playerStart: { x: 0, z: -292, heading: 0 },
+  crossroads: { x: 2, z: -150 },
+  farmBoar: { x: 74, z: -96, heading: -2.25 },
+  pathfinders: { x: -8, z: -160 },
+  rendezvous: { x: -108, z: -36 },
+  orchardTroops: { x: -125, z: -10 },
+  mgNest: { x: -99, z: 30 },
+  boar2: { x: -70, z: 44, heading: Math.PI + 0.4 },
+  crossingStart: { x: -110, z: 42 },
+  crossingEnd: { x: -82, z: 96 },
+  strongpoint: { x: 30, z: 74 },
+  smokeZone: { x: -72, z: 66, r: 20 },
+  ox1: { x: 14, z: 160, heading: Math.PI },
+  ox2: { x: -18, z: 168, heading: Math.PI - 0.5 },
+  reinforcementStart: { x: 0, z: 300, heading: Math.PI },
+  reinforcementGoal: { x: 4, z: 184 },
+  squareCentre: { x: 0, z: 140 },
+  westStreetStaging: { x: -44, z: 128 },
+  flagPole: { x: 0, z: 140 },
+  enemyRetreat: { x: 0, z: 310 },
+};
