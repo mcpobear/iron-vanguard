@@ -51,6 +51,8 @@ export class Game {
   /** Debug/test only: multiplies simulation speed. */
   timeWarp = 1;
   paused = false;
+  /** Simulation frozen while a mission planning panel is open. */
+  hold = false;
   shadowsOn: boolean;
   touch: boolean;
   playerTank: Tank | null = null;
@@ -209,6 +211,14 @@ export class Game {
     return t;
   }
 
+  /** Every surviving enemy tank breaks off and withdraws (relief arrives, attack collapses). */
+  routEnemies() {
+    for (const ai of this.enemyAIs) if (ai.tank.alive && !ai.tank.gone) {
+        ai.tank.driveOffTriggered = true; // one radio call for the rout, not one per tank
+        ai.mode = 'retreat';
+      }
+  }
+
   activateEnemy(t: Tank, holdFireUntil?: number) {
     t.active = true;
     const ai = this.enemyAIs.find((a) => a.tank === t);
@@ -354,12 +364,13 @@ export class Game {
 
   // ---------------------------------------------------------------- mission end
 
-  fail() {
+  fail(reason?: string) {
     if (this.finished) return;
     this.finished = true;
     this.input.enabled = false;
     this.input.exitPointerLock();
-    this.hud.showFailed();
+    this.closeOverlays();
+    this.hud.showFailed(reason);
   }
 
   /** Seconds the end-of-mission camera has been running (missions use it for timing). */
@@ -495,7 +506,7 @@ export class Game {
   }
 
   togglePause(p?: boolean) {
-    if (this.finished || this.transfer || this.victory) return;
+    if (this.finished || this.transfer || this.victory || this.hold) return;
     this.paused = p ?? !this.paused;
     if (this.paused) {
       this.input.resetAll();
@@ -719,13 +730,14 @@ export class Game {
     this.realTime += realDt;
     if (this.transfer) this.updateTransfer(realDt * this.timeWarp);
     else if (!this.victory) this.timeScale = this.ordersOpen && this.settings.slowOnOrders ? 0.25 : this.mapOpen && this.settings.slowOnOrders ? 0.25 : 1;
-    const dt = this.paused ? 0 : realDt * this.timeScale * this.timeWarp;
-    if (!this.paused) {
+    const frozen = this.paused || this.hold;
+    const dt = frozen ? 0 : realDt * this.timeScale * this.timeWarp;
+    if (!frozen) {
       this.handleInput(realDt);
       this.update(dt);
     }
     this.updateCamera(realDt);
-    if (!this.paused) this.updateAiming();
+    if (!frozen) this.updateAiming();
     this.hud.update(realDt);
     this.renderer.render(this.scene, this.camera);
   }

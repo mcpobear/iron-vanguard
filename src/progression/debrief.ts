@@ -61,6 +61,7 @@ export function evaluateAwards(st: CommanderMissionStats, missionId: string, suc
   if (st.heavyKills >= 1) out.push('GUNNERS_LAUREL');
   if (success && missionId === 'bellwick') out.push('BELLWICK_RIBBON');
   if (success && missionId === 'kessler') out.push('KESSLER_RIBBON');
+  if (success && missionId === 'ardenne') out.push('ARDENNE_RIBBON');
   if (success) out.push('DAWN_SPEAR_RIBBON');
   return out;
 }

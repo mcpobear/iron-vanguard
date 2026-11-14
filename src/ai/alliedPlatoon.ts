@@ -40,6 +40,8 @@ export class AlliedPlatoon {
   /** Set while the platoon has been told to support the player. */
   supportTarget: THREE.Vector3 | null = null;
   destroyedCount = 0;
+  /** Heading the platoon faces when holding (0 = north). Posts are spread across it. */
+  facing = 0;
 
   constructor(public callsign: string, public name: string, sector: { x: number; z: number }, private g: Game, seed: number) {
     this.sector = new THREE.Vector3(sector.x, 0, sector.z);
@@ -49,6 +51,7 @@ export class AlliedPlatoon {
   /** Spawn the platoon's tanks around its forming-up point. */
   deploy(at: { x: number; z: number }, heading: number, count = 4) {
     const g = this.g;
+    this.facing = heading;
     const used = new Set(Object.values(g.campaign.commanders).map((c) => c.lastName));
     for (let i = 0; i < count; i++) {
       const t = new Tank(TANKS['A-44'], 'ally', String(201 + i + this.members.length * 10), g.shadowsOn);
@@ -77,15 +80,19 @@ export class AlliedPlatoon {
   }
 
   /** Send the platoon to a new sector; posts are spread along the crest around it. */
-  setSector(p: { x: number; z: number }, order: SectorOrder = 'hold') {
+  setSector(p: { x: number; z: number }, order: SectorOrder = 'hold', facing = this.facing) {
     this.sector.set(p.x, 0, p.z);
     this.order = order;
+    this.facing = facing;
     this.supportTarget = null;
     const live = this.alive;
+    // line abreast, at right angles to the direction the platoon faces
+    const ax = Math.cos(facing), az = -Math.sin(facing);
+    const fx = Math.sin(facing), fz = Math.cos(facing);
     live.forEach((m, i) => {
       const spread = (i - (live.length - 1) / 2) * 15;
-      const px = p.x + spread;
-      m.post.set(px, 0, p.z + (this.rng() - 0.5) * 8);
+      const depth = (this.rng() - 0.5) * 8;
+      m.post.set(p.x + ax * spread + fx * depth, 0, p.z + az * spread + fz * depth);
     });
   }
 
@@ -174,7 +181,7 @@ export class AlliedPlatoon {
       }
     } else {
       // watch the enemy approach
-      t.aimPoint = t.centre().add(new THREE.Vector3(0, 0.5, 70));
+      t.aimPoint = t.centre().add(new THREE.Vector3(Math.sin(this.facing) * 70, 0.5, Math.cos(this.facing) * 70));
     }
 
     // ---- movement ----
@@ -213,7 +220,7 @@ export class AlliedPlatoon {
     } else if (goal) {
       const arrived = driveTo(t, goal.x, goal.z, g, m.ds, dt, speed, 6);
       if (arrived && this.order === 'hold') {
-        const dh = wrap(0 - t.heading); // face north, toward the enemy
+        const dh = wrap(this.facing - t.heading); // face the enemy's approach
         t.steer = Math.abs(dh) > 0.3 ? Math.sign(dh) * 0.5 : 0;
         t.throttle = Math.abs(dh) > 0.3 ? 0.1 : 0;
       }

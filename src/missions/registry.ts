@@ -1,6 +1,7 @@
 import type { MissionInfo, MissionScript } from './mission';
 import { BELLWICK_INFO, BellwickMission } from './bellwick';
 import { KESSLER_INFO, KesslerMission } from './kessler';
+import { ARDENNE_INFO, ArdenneMission } from './ardenne';
 
 export interface MissionEntry {
   info: MissionInfo;
@@ -12,6 +13,7 @@ export interface MissionEntry {
 export const MISSIONS: MissionEntry[] = [
   { info: BELLWICK_INFO, create: () => new BellwickMission(), requires: [] },
   { info: KESSLER_INFO, create: () => new KesslerMission(), requires: ['bellwick'] },
+  { info: ARDENNE_INFO, create: () => new ArdenneMission(), requires: ['kessler'] },
 ];
 
 export const missionById = (id: string) => MISSIONS.find((m) => m.info.id === id);

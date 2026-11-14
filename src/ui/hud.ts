@@ -63,6 +63,56 @@ function bindPress(b: HTMLElement, down: () => void, up?: () => void, drag?: (dx
   b.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
+/**
+ * Deliberate-tap binding for controls that sit inside the look area (MAP, minimap).
+ * It fires only on a short, clean tap that ends on the control. A finger that lands here and
+ * then drags is treated as a camera pan instead, so sweeping the view in a fight never
+ * opens the map by accident.
+ */
+function bindTap(b: HTMLElement, tap: () => void, drag: (dx: number, dy: number) => void, allowed: () => boolean = () => true) {
+  let id: number | null = null;
+  let last = { x: 0, y: 0 };
+  let moved = 0;
+  let t0 = 0;
+  b.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (id !== null) return;
+    id = e.pointerId;
+    last = { x: e.clientX, y: e.clientY };
+    moved = 0;
+    t0 = performance.now();
+    try {
+      b.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  });
+  b.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const dx = e.clientX - last.x, dy = e.clientY - last.y;
+    moved += Math.abs(dx) + Math.abs(dy);
+    last = { x: e.clientX, y: e.clientY };
+    if (moved > 10) drag(dx, dy);
+  });
+  const end = (e: PointerEvent, cancelled: boolean) => {
+    if (e.pointerId !== id) return;
+    id = null;
+    if (cancelled || moved > 10 || performance.now() - t0 > 450) return;
+    const r = b.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+    if (!allowed()) return;
+    b.classList.add('pressed');
+    setTimeout(() => b.classList.remove('pressed'), 140);
+    tap();
+  };
+  b.addEventListener('pointerup', (e) => end(e, false));
+  b.addEventListener('pointercancel', (e) => end(e, true));
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
 const STATUS_CLASS: Record<string, string> = { operational: 'ok', damaged: 'dmg', disabled: 'dis', destroyed: 'dead' };
 const STATUS_TEXT: Record<string, string> = { operational: 'Operational', damaged: 'Damaged', disabled: 'Disabled', destroyed: 'Destroyed' };
 
@@ -150,8 +200,11 @@ export class Hud {
     bindPress(this.artyBtn, () => g.openMap(true, false, true));
     bindPress(recentre, () => g.recenterCamera());
     bindPress(pauseBtn, () => g.togglePause(true));
-    bindPress(mapBtn, () => g.openMap(!g.mapOpen));
-    bindPress(this.minimap, () => g.openMap(true));
+    // MAP and the minimap sit where the right thumb pans the view: they need a deliberate tap,
+    // and are ignored altogether in the moment you are shooting.
+    const calm = () => !g.input.mgHeld && g.time - (g.playerTank?.lastFireTime ?? -99) > 0.8;
+    bindTap(mapBtn, () => g.openMap(!g.mapOpen), (dx, dy) => g.look(dx, dy), () => g.mapOpen || calm());
+    bindTap(this.minimap, () => g.openMap(true), (dx, dy) => g.look(dx, dy), calm);
     for (const a of ['AP', 'HE', 'SMOKE'] as AmmoType[]) {
       const b = el('button', 'btn ammo-opt');
       b.dataset.ammo = a;
@@ -372,23 +425,111 @@ export class Hud {
     );
   }
 
-  showFailed() {
+  showFailed(reason = 'All Vanguard tanks have been knocked out.') {
     const g = this.g;
     const o = this.overlay;
     this.setControlsVisible(false);
     o.className = 'overlay show failed';
     o.innerHTML = `<div class="ov-box menu"><h1 class="red">MISSION FAILED</h1>
-      <div class="ov-small">All Vanguard tanks have been knocked out. The campaign will be restored to its state before deployment.</div>
+      <div class="ov-small">${reason} The campaign will be restored to its state before deployment.</div>
       <button class="btn big" data-a="restart">RESTART MISSION</button>
       <button class="btn big" data-a="quit">MAIN MENU</button></div>`;
     o.querySelectorAll<HTMLElement>('button').forEach((b) => b.addEventListener('click', () => (b.dataset.a === 'restart' ? g.restart() : g.quit())));
+  }
+
+  /**
+   * Pre-battle planning panel: the player assigns each asset to one sector. The tactical map
+   * is shown alongside with the sectors labelled, so the choice is made looking at the ground.
+   */
+  showPlan(o: {
+    title: string;
+    intro: string;
+    assets: { id: string; label: string; desc: string }[];
+    sectors: { id: string; label: string; x: number; z: number }[];
+    defaults: Record<string, string>;
+    confirm: string;
+    onConfirm: (choice: Record<string, string>) => void;
+  }) {
+    const g = this.g;
+    const ov = this.overlay;
+    const choice = { ...o.defaults };
+    this.setControlsVisible(false);
+    ov.className = 'overlay show plan';
+    ov.innerHTML = `<div class="ov-box plan-box"><canvas class="plan-map"></canvas><div class="plan-side">
+      <h1>${o.title}</h1><div class="ov-small">${o.intro}</div>
+      ${o.assets
+        .map(
+          (a) => `<div class="plan-row" data-asset="${a.id}"><div class="plan-asset"><b>${a.label}</b><small>${a.desc}</small></div>
+          <div class="plan-opts">${o.sectors.map((s) => `<button class="btn plan-opt" data-s="${s.id}">${s.label}</button>`).join('')}</div></div>`,
+        )
+        .join('')}
+      <button class="btn big plan-go">${o.confirm}</button></div></div>`;
+    const cv = ov.querySelector('canvas') as HTMLCanvasElement;
+    const colours: Record<string, string> = {};
+    ['#5fb0ff', '#ffd23f', '#ff7a4a', '#9be07a'].forEach((c, i) => o.assets[i] && (colours[o.assets[i].id] = c));
+    const draw = () => {
+      if (!this.staticMap) this.staticMap = this.buildStaticMap(1280);
+      cv.width = cv.height = 520;
+      const ctx = cv.getContext('2d')!;
+      ctx.drawImage(this.staticMap, 0, 0, cv.width, cv.height);
+      const half = g.world.def.half;
+      const k = cv.width / (half * 2);
+      const X = (x: number) => (half - x) * k, Z = (z: number) => (half - z) * k;
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textAlign = 'center';
+      for (const m of g.mission.info.mapLabels ?? []) {
+        ctx.fillStyle = '#fff';
+        ctx.fillText(m.text, X(m.x), Z(m.z));
+      }
+      for (const s of o.sectors) {
+        const here = o.assets.filter((a) => choice[a.id] === s.id);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 5]);
+        ctx.beginPath();
+        ctx.arc(X(s.x), Z(s.z), 30, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        here.forEach((a, i) => {
+          ctx.fillStyle = colours[a.id];
+          ctx.beginPath();
+          ctx.arc(X(s.x) + (i - (here.length - 1) / 2) * 17, Z(s.z), 7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        });
+      }
+      ctx.textAlign = 'start';
+    };
+    const refresh = () => {
+      for (const row of ov.querySelectorAll<HTMLElement>('.plan-row')) {
+        const id = row.dataset.asset!;
+        (row.querySelector('b') as HTMLElement).style.color = colours[id];
+        for (const b of row.querySelectorAll<HTMLElement>('.plan-opt')) b.classList.toggle('active', b.dataset.s === choice[id]);
+      }
+      draw();
+    };
+    for (const row of ov.querySelectorAll<HTMLElement>('.plan-row'))
+      for (const b of row.querySelectorAll<HTMLElement>('.plan-opt'))
+        b.addEventListener('click', () => {
+          choice[row.dataset.asset!] = b.dataset.s!;
+          refresh();
+        });
+    ov.querySelector('.plan-go')!.addEventListener('click', () => {
+      ov.className = 'overlay';
+      ov.innerHTML = '';
+      this.setControlsVisible(true);
+      o.onConfirm(choice);
+    });
+    refresh();
   }
 
   showVictory() {
     const g = this.g;
     const o = this.overlay;
     o.className = 'overlay show victory';
-    o.innerHTML = `<div class="ov-box"><h1>MISSION COMPLETE</h1><h2>BELLWICK LIBERATED</h2>
+    o.innerHTML = `<div class="ov-box"><h1>MISSION COMPLETE</h1><h2>${g.mission.info.victoryTitle}</h2>
       <button class="btn big" data-a="debrief">PROCEED TO DEBRIEF</button></div>`;
     o.querySelector('button')!.addEventListener('click', () => g.completeToDebrief());
   }

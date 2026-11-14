@@ -1,7 +1,7 @@
 {
   "name": "iron-vanguard",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "description": "Iron Vanguard \u2014 mobile-first tactical tank platoon game (Three.js + TypeScript)",
   "scripts": {

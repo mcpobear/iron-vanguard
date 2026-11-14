@@ -243,6 +243,27 @@ export function mgNestGeometry(): THREE.BufferGeometry {
   return g.build();
 }
 
+/** Supply lorry: cab, canvas-covered cargo bed, six wheels. Length runs along local z. */
+export function truckGeometry(burnt = false): THREE.BufferGeometry {
+  const g = new GeoBuilder();
+  const body = burnt ? 0x2a2622 : 0x4f5d3a, canvas = burnt ? 0x1f1c19 : 0x8a8262, dark = 0x1c1c1c;
+  g.box(0, 0.75, 0, 2.2, 0.3, 6.2, burnt ? 0x1c1a18 : 0x353a2a); // chassis
+  g.box(0, 1.55, 2.1, 2.1, 1.4, 1.6, body, 0, 0.05); // cab
+  g.box(0, 1.2, 3.25, 1.9, 0.8, 0.8, body, 0, 0.05); // bonnet
+  if (!burnt) g.box(0, 1.9, 2.92, 1.7, 0.5, 0.06, 0x9fb8c4); // windscreen
+  g.box(0, 1.25, -1.0, 2.3, 0.7, 4.0, body, 0, 0.05); // bed
+  if (burnt) {
+    for (const x of [-1.1, 1.1]) for (const z of [-2.8, -1, 0.8]) g.box(x, 2.1, z, 0.08, 1.2, 0.08, dark);
+  } else {
+    g.box(0, 2.25, -1.0, 2.3, 1.3, 4.0, canvas, 0, 0.06); // canvas tilt
+    g.box(0, 3.0, -1.0, 1.6, 0.25, 4.0, canvas, 0, 0.06);
+    g.box(0.7, 1.75, -3.1, 0.7, 0.5, 0.5, 0x6b5a3a); // ammunition crates on the tailboard
+    g.box(-0.5, 1.75, -3.1, 0.8, 0.45, 0.5, 0x5d6b3a);
+  }
+  for (const x of [-1.05, 1.05]) for (const z of [2.6, -1.4, -2.5]) g.cylinder(x, 0.5, z, 0.5, 0.3, dark, 8, 0, 0, Math.PI / 2);
+  return g.build();
+}
+
 export function strongpointGeometry(): THREE.BufferGeometry {
   const g = new GeoBuilder();
   for (let i = 0; i < 18; i++) {

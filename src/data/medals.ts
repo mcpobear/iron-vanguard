@@ -63,6 +63,16 @@ export const MEDALS: Record<string, MedalDef> = {
     ribbon: ['#6b6f78', '#d8c25a', '#2f6b3a', '#d8c25a', '#6b6f78'],
     shape: 'bar',
   },
+  ARDENNE_RIBBON: {
+    id: 'ARDENNE_RIBBON',
+    name: 'Ardenne Farm Defence Ribbon',
+    kind: 'ribbon',
+    tier: 0,
+    description: 'For service in the stand at Ardenne Farm.',
+    criteria: 'Took part in the successful defence of Ardenne Farm (awarded posthumously where applicable).',
+    ribbon: ['#7a0f1d', '#f0e6c8', '#3a4a6b', '#f0e6c8', '#7a0f1d'],
+    shape: 'bar',
+  },
   BELLWICK_RIBBON: {
     id: 'BELLWICK_RIBBON',
     name: 'Bellwick Campaign Ribbon',

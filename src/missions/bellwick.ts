@@ -37,6 +37,7 @@ export const BELLWICK_INFO: MissionInfo = {
   map: BELLWICK,
   fog: { color: 0xcfd8dc, near: 90, far: 520 },
   order: 1,
+  victoryTitle: 'BELLWICK LIBERATED',
   // the introductory mission stays gentler than the rest of the campaign
   enemySkill: 0.85,
   forces: {

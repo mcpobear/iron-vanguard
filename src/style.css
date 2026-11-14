@@ -244,7 +244,8 @@ section { background: var(--panel); border: 1px solid var(--line); border-radius
 .btn.small { width: calc(42px * var(--ui)); height: calc(42px * var(--ui)); font-size: calc(14px * var(--ui)) !important; }
 .btn.recentre { right: calc(200px * var(--ui) + var(--sar)); bottom: calc(26px + var(--sab)); }
 .btn.pause { right: calc(132px * var(--ui) + var(--sar)); top: calc(10px + var(--sat)); }
-.btn.mapbtn { right: calc(132px * var(--ui) + var(--sar)); top: calc(58px * var(--ui) + var(--sat)); font-size: calc(10px * var(--ui)) !important; }
+/* MAP sits in the top strip beside pause, clear of the area the right thumb sweeps to look around */
+.btn.mapbtn { right: calc(182px * var(--ui) + var(--sar)); top: calc(10px + var(--sat)); font-size: calc(10px * var(--ui)) !important; }
 .ammo-menu { position: absolute; right: calc(110px * var(--ui) + var(--sar)); bottom: calc(170px * var(--ui) + var(--sab)); display: none; gap: 8px; pointer-events: auto; }
 .ammo-menu.open { display: flex; }
 .ammo-menu .btn { position: static; width: calc(64px * var(--ui)); height: calc(64px * var(--ui)); }
@@ -284,7 +285,7 @@ body.touch .key-legend { display: none; }
 
 .overlay { inset: 0; display: none; place-items: center; pointer-events: none; }
 .overlay.show { display: grid; }
-.overlay.pause, .overlay.failed, .overlay.victory { pointer-events: auto; background: rgba(0,0,0,0.55); }
+.overlay.pause, .overlay.failed, .overlay.victory, .overlay.plan { pointer-events: auto; background: rgba(0,0,0,0.55); }
 .overlay.transfer { background: rgba(0,0,0,0.35); }
 .ov-box { text-align: center; padding: 16px 26px; border-radius: 18px; background: rgba(18, 24, 14, 0.9); border: 2px solid var(--gold); max-width: 560px; }
 .ov-box.menu { width: min(420px, 90vw); }
@@ -307,3 +308,26 @@ body.touch .key-legend { display: none; }
 .cc-body { min-width: 0; }
 .cc-name b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hud.cinematic .cmd-card, .hud.cinematic .platoon, .hud.cinematic .objective, .hud.cinematic .minimap, .hud.cinematic .markers, .hud.cinematic .crosshair, .hud.cinematic .gun-marker, .hud.cinematic .target-info, .hud.cinematic .hint { display: none !important; }
+
+/* pre-battle planning panel */
+.ov-box.plan-box { display: flex; gap: 16px; align-items: center; max-width: min(960px, 96vw); max-height: 94vh; padding: 12px 16px; text-align: left; }
+.plan-map { width: min(44vh, 40vw); height: min(44vh, 40vw); border-radius: 10px; border: 2px solid var(--gold); flex: none; }
+.plan-side { flex: 1; min-width: 0; overflow-y: auto; max-height: 90vh; }
+.plan-side h1 { font-size: 22px; letter-spacing: 2px; margin: 0 0 4px; color: var(--gold); }
+.plan-row { margin: 8px 0; }
+.plan-asset b { display: block; font-size: 14px; letter-spacing: 1px; }
+.plan-asset small { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+.plan-opts { display: flex; gap: 6px; }
+.plan-opt { flex: 1; padding: 9px 4px; font-size: 13px; opacity: 0.7; }
+.plan-opt.active { opacity: 1; outline: 3px solid var(--gold); background: linear-gradient(#5d7a3a, #3d5424); }
+@media (max-height: 460px) {
+  .plan-map { width: min(70vh, 34vw); height: min(70vh, 34vw); }
+  .plan-side h1 { font-size: 17px; }
+  .plan-row { margin: 4px 0; }
+  .plan-opt { padding: 6px 4px; font-size: 12px; }
+  .plan-asset small { font-size: 11px; margin-bottom: 2px; }
+}
+@media (orientation: portrait) {
+  .ov-box.plan-box { flex-direction: column; }
+  .plan-map { width: min(34vh, 80vw); height: min(34vh, 80vw); }
+}

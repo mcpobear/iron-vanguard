@@ -37,6 +37,7 @@ export const KESSLER_INFO: MissionInfo = {
   map: KESSLER,
   fog: { color: 0xcdd9e2, near: 120, far: 620 },
   order: 2,
+  victoryTitle: 'KESSLER RIDGE HELD',
   enemySkill: 1.15,
   forces: {
     friendly: '3 × tank platoon (Vanguard 1, 2 and 3), Hammer Battery in support, anti-tank battery moving up',
@@ -90,7 +91,7 @@ export class KesslerMission implements MissionScript {
     for (const p of [KPOINTS.gunLineWest, KPOINTS.gunLine, KPOINTS.gunLineEast]) {
       const m = new THREE.Mesh(strongpointGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
       m.position.set(p.x, g.world.h(p.x, p.z), p.z);
-      m.rotation.y = Math.PI; // facing north, up the reverse slope
+      m.rotation.y = Math.PI / 2; // barrel north, up the reverse slope
       m.visible = false;
       m.name = 'atgun';
       g.scene.add(m);

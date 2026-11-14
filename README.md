@@ -4,7 +4,7 @@ A mobile-first, single-player tactical tank platoon game set in the War of the B
 Command four A-44 Sentinel tanks of Vanguard 1 Platoon. Each tank has a persistent commander who can be promoted,
 decorated or permanently killed.
 
-**Two playable missions:** *The Battle of Bellwick* (15–20 min) and *The Kessler Ridge Gauntlet* (20–30 min).
+**Three playable missions:** *The Battle of Bellwick* (15–20 min), *The Kessler Ridge Gauntlet* (20–30 min) and *Last Stand at Ardenne Farm* (8–12 min).
 
 > "Machines can be replaced. The men who command them cannot."
 
@@ -51,6 +51,8 @@ On a phone, use **Add to Home Screen** for a full-screen, app-like launch (a web
 | Skip end-of-mission camera | **SKIP** | SKIP |
 | Pause | II | Esc |
 
+MAP and the minimap need a short, deliberate tap. A finger that lands on them and drags pans the camera instead, and taps are ignored while you are firing, so the map does not open by accident in a fight.
+
 Multi-touch is fully supported. You can drive, look and fire at the same time. On command transfer every finger is released safely.
 
 ## The Battle of Bellwick
@@ -88,6 +90,36 @@ What's new in this mission:
 - **The V-58 Bastion.** A heavy tank whose frontal armour simply stops the Sentinel's 75 mm — six frontal hits
   do nothing. Flank it, catch it as it crests the ridge, or drop a barrage on it.
 
+## Last Stand at Ardenne Farm (mission 3)
+
+A hold-at-all-costs defence, unlocked by completing Kessler Ridge. The Varkovians have broken through on the
+flank and the regiment's only supply road runs through the crossroads at Ardenne Farm. Three roads lead in —
+the open **North Road**, the **East Track** out of the woods and the hedged **West Lane** — and a relief column
+is nine minutes away.
+
+1. **Defence plan:** before the first shot, a planning panel (with the tactical map) asks where to put three
+   assets, one road each, doubling up if you like. They stay where you put them.
+   - **Vanguard 2** — three Sentinels that hold their road and answer ATTACK MY TARGET.
+   - **Anti-tank guns** — two dug-in guns: accurate out to 240 m, knocked out by return fire or if a tank reaches them.
+   - **Minefield** — six mines across one road. A strike breaks a track and badly damages the tank; a marker
+     and warning stakes show where it lies. Your own tanks cross it safely.
+2. **The probe:** light tanks and infantry down the North Road.
+3. **Both flanks:** armour on the East Track and West Lane together.
+4. **General assault:** all three roads at once; Hammer Battery gives you two fire missions.
+5. **The armoured push:** V-58 Bastions lead down the North Road while the flanks are pinned. Hold until
+   Sabre 1, the relief column, comes up the south road.
+
+What's new in this mission:
+
+- **Supply lorries.** Two lorries are parked in the farmyard. Halt within a few metres of one for five seconds
+  and your tank — and any of your platoon close by — is rearmed and patched up to 85% hull. The crews need 45
+  seconds between visits. Enemy tanks with a view into the yard shell the lorries; lose both and there is no
+  more ammunition.
+- **Losing the farm.** Enemy tanks sitting in the farmyard run down an overrun clock. Clear them out or the
+  mission is lost even if your platoon survives.
+- **A battle clock.** The objective shows the time until relief. Beating off a wave early brings the next one
+  forward (after a lull long enough to rearm), so a good defence shortens the battle.
+
 ## Difficulty
 
 Settings → Difficulty sets enemy crew quality, and it is the main dial if the game feels too easy or too hard:
@@ -98,7 +130,7 @@ Settings → Difficulty sets enemy crew quality, and it is the main dial if the 
 | **Veteran** (default) | 105% | normal | accurate |
 | Elite | 135% | fast | tight |
 
-Each mission also carries its own multiplier on top: Bellwick is gentler than the rest, Kessler Ridge harder.
+Each mission also carries its own multiplier on top: Bellwick is gentler than the rest, Kessler Ridge and Ardenne Farm harder.
 
 **Hull-down matters, but it is not invisibility.** A tank behind a crest is still spotted and shot at — its
 protection comes from incoming rounds striking the ridge and from presenting only turret armour.
@@ -110,7 +142,7 @@ protection comes from incoming rounds striking the ridge and from presenting onl
 - **Command succession:** if your tank is destroyed or disabled, play slows, the transfer card appears, and control passes to the next operational tank (Mercer → Vale → Bennett → Ward). The battlefield state is preserved. The mission fails only if all four tanks are lost.
 - **Save integrity:** the campaign is saved before deployment and never written during combat. Restarting or failing restores the pre-mission state. A successful result is locked in as *pending* immediately, so reloading the page cannot dodge a death. Results are committed when you confirm the debrief, and committing is idempotent: no duplicate XP or medals.
 - **Between missions:** the dead go to the **Roll of Honour** with their full record. Vale (or the next senior survivor) takes command. Replacement commanders (new names, service numbers and biographies, never clones) and replacement Sentinels fill the gaps. Platoon **cohesion** drops with veteran losses and recovers over time.
-- **Decorations** are awarded by tracked events, never at random: Star of Valour, Armoured Service Cross, Gunner's Laurel, Iron Shield Medal, and the Bellwick, Kessler Ridge and Dawn Spear ribbons. Posthumous awards are supported.
+- **Decorations** are awarded by tracked events, never at random: Star of Valour, Armoured Service Cross, Gunner's Laurel, Iron Shield Medal, and the Bellwick, Kessler Ridge, Ardenne Farm and Dawn Spear ribbons. Posthumous awards are supported.
 - Save **export/import** is available in Settings.
 
 ## Architecture
@@ -125,7 +157,7 @@ src/
   ai/           friendly, allied-platoon and enemy tank AI (spotting, flanking, patrol, retreat)
   platoon/      orders, formations, delays (leadership + cohesion)
   infantry/     airborne & enemy squads, MG nests, pinning
-  missions/     mission registry and interface; Bellwick and Kessler map data and phase scripts
+  missions/     mission registry and interface; Bellwick, Kessler and Ardenne map data and phase scripts
   campaign/     campaign types, creation, appointments, replacements   (pure, no rendering)
   progression/  mission tracker (XP attribution), casualty model, debrief/commit   (pure)
   persistence/  versioned localStorage saves with migration

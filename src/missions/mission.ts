@@ -31,6 +31,8 @@ export interface MissionInfo {
   /** Multiplier on enemy crew quality for this mission (1 = baseline). */
   enemySkill?: number;
   forces?: { friendly: string; enemy: string };
+  /** Headline on the mission-complete panel, e.g. 'BELLWICK LIBERATED'. */
+  victoryTitle: string;
 }
 
 export interface MissionScript {
